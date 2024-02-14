@@ -1,0 +1,6 @@
+
+
+
+module  kade::CORE {
+
+}
