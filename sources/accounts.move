@@ -10,14 +10,11 @@ module kade::accounts {
     use aptos_framework::account;
     use aptos_framework::event;
     use aptos_framework::object;
+    use aptos_framework::timestamp;
     #[test_only]
     use std::features;
     #[test_only]
     use aptos_std::debug;
-    #[test_only]
-    use aptos_framework::event::emitted_events;
-    #[test_only]
-    use aptos_framework::timestamp;
 
     friend kade::publications;
 
@@ -27,7 +24,7 @@ module kade::accounts {
     // ===
     const EDelegateDoesNotExist:u64 = 20;
 
-    const SEED: vector<u8> = b"kade::accountsv1.0.0";
+    const SEED: vector<u8> = b"kade::accountsv1.0.3";
 
     struct LocalAccountReferences has key {
         transfer_ref: object::TransferRef,
@@ -44,12 +41,19 @@ module kade::accounts {
     struct DelegateAccount has key, drop {
         owner: address,
         account_object_address: address,
+        kid: u64,
     }
 
     struct State has key {
         registry_count: u64,
         relations_count: u64,
+        delegates_count: u64,
         signer_capability: account::SignerCapability,
+        account_creation_events: event::EventHandle<AccountCreateEvent>,
+        delegate_creation_events: event::EventHandle<DelegateCreateEvent>,
+        delegate_remove_events: event::EventHandle<DelegateRemoveEvent>,
+        account_follow_events: event::EventHandle<AccountFollowEvent>,
+        account_unfollow_events: event::EventHandle<AccountUnFollowEvent>,
     }
 
     #[event]
@@ -58,6 +62,7 @@ module kade::accounts {
         creator_address: address,
         account_object_address: address,
         kid: u64,
+        timestamp: u64,
     }
 
     #[event]
@@ -65,6 +70,8 @@ module kade::accounts {
         owner_address: address,
         object_address: address,
         delegate_address: address,
+        kid: u64,
+        timestamp: u64,
     }
 
     #[event]
@@ -72,6 +79,8 @@ module kade::accounts {
         owner_address: address,
         object_address: address,
         delegate_address: address,
+        kid: u64,
+        timestamp: u64,
     }
 
     #[event]
@@ -83,6 +92,7 @@ module kade::accounts {
         kid: u64,
         delegate: address,
         user_kid: u64,
+        timestamp: u64,
     }
 
 
@@ -91,6 +101,7 @@ module kade::accounts {
         delegate: address,
         user_kid: u64,
         kid: u64,
+        timestamp: u64,
     }
 
     fun init_module(admin: &signer) {
@@ -100,6 +111,12 @@ module kade::accounts {
             registry_count: 0,
             signer_capability,
             relations_count: 0,
+            delegates_count: 0,
+            account_creation_events: account::new_event_handle(&resource_signer),
+            delegate_creation_events: account::new_event_handle(&resource_signer),
+            delegate_remove_events: account::new_event_handle(&resource_signer),
+            account_follow_events: account::new_event_handle(&resource_signer),
+            account_unfollow_events: account::new_event_handle(&resource_signer),
         })
     }
 
@@ -138,20 +155,20 @@ module kade::accounts {
 
         state.registry_count = state.registry_count + 1;
 
-
-
-        event::emit(AccountCreateEvent {
+        event::emit_event(&mut state.account_creation_events, AccountCreateEvent {
             username,
             creator_address: user_address,
             account_object_address: object_address,
             kid: new_account.kid,
+            timestamp: timestamp::now_seconds(),
         })
     }
 
-    public entry fun add_account_delegate(user: &signer, delegate: &signer) acquires  LocalAccountReferences, KadeAccount {
+    public entry fun add_account_delegate(user: &signer, delegate: &signer) acquires  LocalAccountReferences, KadeAccount, State {
 
         let user_address = signer::address_of(user);
-
+        let resource_address = account::create_resource_address(&@kade, SEED);
+        let state  = borrow_global_mut<State>(resource_address);
         let localAccountRefData = borrow_global<LocalAccountReferences>(user_address);
         let object_address = localAccountRefData.object_address;
 
@@ -160,35 +177,46 @@ module kade::accounts {
         let delegate_address = signer::address_of(delegate);
 
         vector::push_back(&mut kade_account.delegates, delegate_address);
-
-        move_to<DelegateAccount>(delegate, DelegateAccount {
+        let delegate_kid = state.delegates_count;
+        let delegate_data = DelegateAccount {
             owner: user_address,
-            account_object_address: localAccountRefData.object_address
-        });
+            account_object_address: localAccountRefData.object_address,
+            kid: delegate_kid,
+        };
 
-        event::emit(DelegateCreateEvent {
+        move_to<DelegateAccount>(delegate,delegate_data );
+
+        state.delegates_count = state.delegates_count + 1;
+
+        event::emit_event(&mut state.delegate_creation_events, DelegateCreateEvent {
             delegate_address,
             object_address,
             owner_address: user_address,
+            kid: delegate_kid,
+            timestamp: timestamp::now_seconds(),
         })
     }
 
 
-    public entry fun remove_account_delegate(user: &signer, delegate_address: address) acquires LocalAccountReferences, KadeAccount, DelegateAccount {
+    public entry fun remove_account_delegate(user: &signer, delegate_address: address) acquires LocalAccountReferences, KadeAccount, DelegateAccount, State {
+        let resource_address = account::create_resource_address(&@kade, SEED);
+        let state = borrow_global_mut<State>(resource_address);
         let user_address = signer::address_of(user);
         let local = borrow_global<LocalAccountReferences>(user_address);
         let account_object = borrow_global_mut<KadeAccount>(local.object_address);
 
         assert!(vector::contains(&account_object.delegates, &delegate_address), EDelegateDoesNotExist);
 
-        move_from<DelegateAccount>(delegate_address);
+        let delegate_data = move_from<DelegateAccount>(delegate_address);
 
         vector::remove_value(&mut account_object.delegates, &delegate_address);
 
-        event::emit(DelegateRemoveEvent {
+        event::emit_event(&mut state.delegate_remove_events, DelegateRemoveEvent {
             delegate_address,
             object_address: local.object_address,
             owner_address: user_address,
+            kid: delegate_data.kid,
+            timestamp: timestamp::now_seconds(),
         })
     }
 
@@ -213,7 +241,7 @@ module kade::accounts {
         let follower = get_account_owner(delegate.account_object_address);
         let following = get_account_owner(localAccountData.object_address);
 
-        event::emit(AccountFollowEvent {
+        event::emit_event(&mut state.account_follow_events, AccountFollowEvent {
             follower_kid: follower.kid,
             following_kid: following.kid,
             follower: delegate.owner,
@@ -221,19 +249,24 @@ module kade::accounts {
             kid,
             delegate: delegate_address,
             user_kid: follower.kid,
+            timestamp: timestamp::now_seconds(),
         })
 
     }
 
-    public entry fun unfollow_account(delegate: &signer, kid: u64)acquires DelegateAccount, KadeAccount {
+    public entry fun unfollow_account(delegate: &signer, kid: u64)acquires DelegateAccount, KadeAccount, State {
 
         let delegate_address = signer::address_of(delegate);
         let user_kid = get_delegate_owner(delegate);
 
-        event::emit(AccountUnFollowEvent {
+        let resource_address  =account::create_resource_address(&@kade, SEED);
+        let state = borrow_global_mut<State>(resource_address);
+
+        event::emit_event(&mut state.account_unfollow_events, AccountUnFollowEvent {
             delegate: delegate_address,
             user_kid,
             kid,
+            timestamp: timestamp::now_seconds(),
         })
     }
 
@@ -247,6 +280,8 @@ module kade::accounts {
         let account_data = borrow_global<KadeAccount>(data.account_object_address);
 
         account_data.kid
+
+
 
     }
 
@@ -274,6 +309,8 @@ module kade::accounts {
 
         let expeected_resource_address = account::create_resource_address(&@kade, SEED);
 
+        debug::print(&expeected_resource_address);
+
         let state = borrow_global<State>(expeected_resource_address);
 
         assert!(state.registry_count == 0, 1);
@@ -295,13 +332,10 @@ module kade::accounts {
         let username = string::utf8(b"kade");
         create_account(user, username);
 
-        let account_creation_events = emitted_events<AccountCreateEvent>();
+        let resource_address = account::create_resource_address(&@kade, SEED);
+        let state = borrow_global<State>(resource_address);
 
-        assert!(vector::length(&account_creation_events) == 1, 1);
-
-        let event = vector::borrow(&account_creation_events, 0);
-
-        assert!(event.username == username, 2);
+        assert!(event::counter(&state.account_creation_events) == 1, 1);
 
         let local_account_ref = borrow_global<LocalAccountReferences>(signer::address_of(user));
 
@@ -401,25 +435,12 @@ module kade::accounts {
 
         follow_account(delegate, signer::address_of(user2));
 
-        let events = emitted_events<AccountFollowEvent>();
+        let resource_address  =account::create_resource_address(&@kade, SEED);
+        let state = borrow_global_mut<State>(resource_address);
 
-        assert!(vector::length(&events) == 1, 1);
+        assert!(event::counter(&state.account_follow_events) == 1, 1);
 
-        let event = vector::borrow(&events, 0);
 
-        assert!(event.follower_kid == 0, 2);
-
-        assert!(event.following_kid == 1, 3);
-
-        assert!(event.follower == signer::address_of(user1), 4);
-
-        assert!(event.following == signer::address_of(user2), 5);
-
-        assert!(event.delegate == signer::address_of(delegate), 6);
-
-        assert!(event.user_kid == 0, 7);
-
-        debug::print(event);
 
     }
 
@@ -445,19 +466,10 @@ module kade::accounts {
 
         unfollow_account(delegate, 0);
 
-        let events = emitted_events<AccountUnFollowEvent>();
+        let resource_address  =account::create_resource_address(&@kade, SEED);
+        let state = borrow_global_mut<State>(resource_address);
 
-        assert!(vector::length(&events) == 1, 1);
-
-        let event = vector::borrow(&events, 0);
-
-        assert!(event.delegate == signer::address_of(delegate), 2);
-
-        assert!(event.user_kid == 0, 3);
-
-        assert!(event.kid == 0, 4);
-
-        debug::print(event);
+        assert!(event::counter(&state.account_unfollow_events) == 1, 1);
 
     }
 

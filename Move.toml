@@ -1,10 +1,10 @@
 [package]
-name = "KADE"
+name = "KADE_NETWORK"
 version = "1.0.0"
 authors = []
 
 [addresses]
-kade="0x32223"
+kade="0x80295eebe3af4acd76e7f693f016da172bd436496e679b80e468e41a6a9874aa"
 [dev-addresses]
 
 [dependencies.AptosFramework]

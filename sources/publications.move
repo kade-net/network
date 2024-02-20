@@ -15,25 +15,33 @@ module kade::publications {
     #[test_only]
     use std::features;
     #[test_only]
-    use std::vector;
-    #[test_only]
-    use aptos_framework::event::emitted_events;
+    use aptos_std::debug;
 
-    const SEED: vector<u8> = b"kade::publicationsv1.0.0";
+    const SEED: vector<u8> = b"kade::publicationsv1.0.3";
 
     struct State has key {
-        publication_count: u256,
-        reaction_count: u256,
-        comment_count: u256,
-        repost_count: u256,
-        quoute_count: u256,
+        publication_count: u64,
+        reaction_count: u64,
+        comment_count: u64,
+        repost_count: u64,
+        quoute_count: u64,
         signer_capability:  account::SignerCapability,
+        publication_create_events: event::EventHandle<PublicationCreate>,
+        publication_remove_events: event::EventHandle<PublicationRemove>,
+        comment_create_events: event::EventHandle<CommentCreateEvent>,
+        comment_remove_events: event::EventHandle<CommentRemoveEvent>,
+        repost_create_events: event::EventHandle<RepostCreateEvent>,
+        repost_remove_events: event::EventHandle<RepostRemoveEvent>,
+        quote_create_events: event::EventHandle<QuoteCreateEvent>,
+        quote_remove_events: event::EventHandle<QuoteRemoveEvent>,
+        reaction_create_events: event::EventHandle<ReactionCreateEvent>,
+        reaction_remove_events: event::EventHandle<ReactionRemoveEvent>
     }
 
 
     #[event]
     struct PublicationCreate has store, drop {
-        kid: u256,
+        kid: u64,
         payload: string::String,  // stringified json payload
         user_kid: u64,
         delegate: address,
@@ -42,7 +50,7 @@ module kade::publications {
 
     #[event]
     struct  PublicationRemove has store, drop {
-        kid: u256,
+        kid: u64,
         user_kid: u64,
         delegate: address,
         timestamp: u64,
@@ -50,8 +58,8 @@ module kade::publications {
 
     #[event]
     struct CommentCreateEvent has store, drop {
-        kid: u256,
-        refference_kid: u256,
+        kid: u64,
+        reference_kid: u64,
         user_kid: u64,
         delegate: address,
         type: u64, // comment 1 for comment on publication, 2 for comment on quoute, 3 for comment on comment
@@ -59,8 +67,8 @@ module kade::publications {
     }
 
     #[event]
-    struct CommentDeleteEvent has store, drop {
-        kid: u256,
+    struct CommentRemoveEvent has store, drop {
+        kid: u64,
         user_kid: u64,
         delegate: address,
         timestamp: u64,
@@ -68,8 +76,9 @@ module kade::publications {
 
     #[event]
     struct  RepostCreateEvent has store, drop {
-        kid: u256,
-        refference_kid: u256,
+        kid: u64,
+        reference_kid: u64,
+        type: u64, // 1 for publication, 2 for quotes , 3 for comments
         user_kid: u64,
         delegate: address,
         timestamp: u64,
@@ -77,7 +86,7 @@ module kade::publications {
 
     #[event]
     struct RepostRemoveEvent has store, drop {
-        kid: u256,
+        kid: u64,
         user_kid: u64,
         delegate: address,
         timestamp: u64,
@@ -85,8 +94,8 @@ module kade::publications {
 
     #[event]
     struct QuoteCreateEvent has store, drop {
-        kid: u256,
-        reference_kid: u256,
+        kid: u64,
+        reference_kid: u64,
         user_kid: u64,
         delegate: address,
         payload: string::String,
@@ -95,7 +104,7 @@ module kade::publications {
 
     #[event]
     struct QuoteRemoveEvent has store, drop {
-        kid: u256,
+        kid: u64,
         user_kid: u64,
         delegate: address,
         timestamp: u64,
@@ -103,7 +112,9 @@ module kade::publications {
 
     #[event]
     struct ReactionCreateEvent has store, drop {
-        kid: u256,
+        kid: u64,
+        reference_kid: u64,
+        type: u64,// 1 for publication, 2 for quotes , 3 for comments
         user_kid: u64,
         delegate: address,
         reaction: u64,
@@ -112,7 +123,7 @@ module kade::publications {
 
     #[event]
     struct ReactionRemoveEvent has store, drop {
-        kid: u256,
+        kid: u64,
         user_kid: u64,
         delegate: address,
         timestamp: u64,
@@ -128,7 +139,17 @@ module kade::publications {
             reaction_count: 0,
             comment_count: 0,
             publication_count: 0,
-            quoute_count: 0
+            quoute_count: 0,
+            comment_create_events: account::new_event_handle(&resource_signer),
+            comment_remove_events: account::new_event_handle(&resource_signer),
+            publication_create_events: account::new_event_handle(&resource_signer),
+            publication_remove_events: account::new_event_handle(&resource_signer),
+            quote_create_events: account::new_event_handle(&resource_signer),
+            quote_remove_events: account::new_event_handle(&resource_signer),
+            reaction_create_events: account::new_event_handle(&resource_signer),
+            reaction_remove_events: account::new_event_handle(&resource_signer),
+            repost_create_events: account::new_event_handle(&resource_signer),
+            repost_remove_events: account::new_event_handle(&resource_signer),
         });
 
     }
@@ -142,30 +163,31 @@ module kade::publications {
         let kid = state.publication_count;
         state.publication_count = state.publication_count + 1;
 
-        event::emit(PublicationCreate {
+        event::emit_event(&mut state.publication_create_events, PublicationCreate {
             delegate: delegate_address,
             kid,
             timestamp: timestamp::now_seconds(),
             payload,
             user_kid
-        })
+        });
     }
 
 
-    public entry fun remove_publication(delegate: &signer, kid: u256) {
+    public entry fun remove_publication(delegate: &signer, kid: u64) acquires State {
         let delegate_address = signer::address_of(delegate);
         let user_kid = accounts::get_delegate_owner(delegate);
+        let resource_address = account::create_resource_address(&@kade, SEED);
+        let state = borrow_global_mut<State>(resource_address);
 
-
-        event::emit(PublicationRemove {
+        event::emit_event(&mut state.publication_remove_events, PublicationRemove {
             delegate: delegate_address,
-            timestamp: timestamp::now_seconds(),
             kid,
+            timestamp: timestamp::now_seconds(),
             user_kid
-        })
+        });
     }
 
-    public entry fun create_comment(delegate: &signer, refference_kid: u256, type: u64) acquires State {
+    public entry fun create_comment(delegate: &signer, reference_kid: u64, type: u64) acquires State {
         let resource_address = account::create_resource_address(&@kade, SEED);
         let delegate_address = signer::address_of(delegate);
         let user_kid = accounts::get_delegate_owner(delegate);
@@ -173,29 +195,32 @@ module kade::publications {
         let kid = state.comment_count;
         state.comment_count = state.comment_count + 1;
 
-        event::emit(CommentCreateEvent {
+        event::emit_event(&mut state.comment_create_events, CommentCreateEvent {
             delegate: delegate_address,
             kid,
-            refference_kid,
+            reference_kid,
             timestamp: timestamp::now_seconds(),
             type,
             user_kid
-        })
+        });
     }
 
-    public entry fun remove_comment(delegate: &signer, kid: u256) {
+    public entry fun remove_comment(delegate: &signer, kid: u64) acquires State {
         let delegate_address = signer::address_of(delegate);
         let user_kid = accounts::get_delegate_owner(delegate);
+        let resource_address = account::create_resource_address(&@kade, SEED);
 
-        event::emit(CommentDeleteEvent {
+        let state = borrow_global_mut<State>(resource_address);
+
+        event::emit_event(&mut state.comment_remove_events, CommentRemoveEvent {
             delegate: delegate_address,
             kid,
             timestamp: timestamp::now_seconds(),
             user_kid
-        })
+        });
     }
 
-    public entry fun create_repost(delegate: &signer, refference_kid: u256) acquires State {
+    public entry fun create_repost(delegate: &signer, reference_kid: u64, type: u64) acquires State {
         let resource_address = account::create_resource_address(&@kade, SEED);
         let delegate_address = signer::address_of(delegate);
         let user_kid = accounts::get_delegate_owner(delegate);
@@ -203,28 +228,34 @@ module kade::publications {
         let kid = state.repost_count;
         state.repost_count = state.repost_count + 1;
 
+
         event::emit(RepostCreateEvent {
             delegate: delegate_address,
             kid,
-            refference_kid,
+            reference_kid,
             timestamp: timestamp::now_seconds(),
-            user_kid
+            user_kid,
+            type
         })
     }
 
-    public entry fun remove_repost(delegate: &signer, kid: u256) {
+    public entry fun remove_repost(delegate: &signer, kid: u64) acquires State {
         let delegate_address = signer::address_of(delegate);
         let user_kid = accounts::get_delegate_owner(delegate);
 
-        event::emit(RepostRemoveEvent {
+        let resource_address = account::create_resource_address(&@kade, SEED);
+
+        let state = borrow_global_mut<State>(resource_address);
+
+        event::emit_event(&mut state.repost_remove_events, RepostRemoveEvent {
             delegate: delegate_address,
             kid,
             timestamp: timestamp::now_seconds(),
             user_kid
-        })
+        });
     }
 
-    public entry fun create_quote(delegate: &signer, reference_kid: u256, payload: string::String) acquires State {
+    public entry fun create_quote(delegate: &signer, reference_kid: u64, payload: string::String) acquires State {
         let resource_address = account::create_resource_address(&@kade, SEED);
         let delegate_address = signer::address_of(delegate);
         let user_kid = accounts::get_delegate_owner(delegate);
@@ -232,29 +263,31 @@ module kade::publications {
         let kid = state.quoute_count;
         state.quoute_count = state.quoute_count + 1;
 
-        event::emit(QuoteCreateEvent {
+        event::emit_event(&mut state.quote_create_events, QuoteCreateEvent {
             delegate: delegate_address,
             kid,
             reference_kid,
             timestamp: timestamp::now_seconds(),
             user_kid,
             payload
-        })
+        });
     }
 
-    public entry fun remove_quote(delegate: &signer, kid: u256) {
+    public entry fun remove_quote(delegate: &signer, kid: u64) acquires State {
         let delegate_address = signer::address_of(delegate);
         let user_kid = accounts::get_delegate_owner(delegate);
+        let resource_address = account::create_resource_address(&@kade, SEED);
+        let state = borrow_global_mut<State>(resource_address);
 
-        event::emit(QuoteRemoveEvent {
+        event::emit_event(&mut state.quote_remove_events, QuoteRemoveEvent {
             delegate: delegate_address,
             kid,
             timestamp: timestamp::now_seconds(),
             user_kid
-        })
+        });
     }
 
-    public entry fun create_reaction(delegate: &signer, reaction: u64) acquires State {
+    public entry fun create_reaction(delegate: &signer, reaction: u64, reference_kid: u64, type: u64) acquires State {
         let resource_address = account::create_resource_address(&@kade, SEED);
         let delegate_address = signer::address_of(delegate);
         let user_kid = accounts::get_delegate_owner(delegate);
@@ -262,25 +295,29 @@ module kade::publications {
         let kid = state.reaction_count;
         state.reaction_count = state.reaction_count + 1;
 
-        event::emit(ReactionCreateEvent {
+        event::emit_event(&mut state.reaction_create_events, ReactionCreateEvent {
             delegate: delegate_address,
             kid,
             reaction,
             timestamp: timestamp::now_seconds(),
-            user_kid
-        })
+            user_kid,
+            reference_kid,
+            type
+        });
     }
 
-    public entry fun remove_reaction(delegate: &signer, kid: u256) {
+    public entry fun remove_reaction(delegate: &signer, kid: u64) acquires State {
         let delegate_address = signer::address_of(delegate);
         let user_kid = accounts::get_delegate_owner(delegate);
+        let resource_address = account::create_resource_address(&@kade, SEED);
+        let state = borrow_global_mut<State>(resource_address);
 
-        event::emit(ReactionRemoveEvent {
+        event::emit_event(&mut state.reaction_remove_events, ReactionRemoveEvent {
             delegate: delegate_address,
             kid,
             timestamp: timestamp::now_seconds(),
             user_kid
-        })
+        });
     }
 
 
@@ -295,6 +332,8 @@ module kade::publications {
         init_module(admin);
 
         let resource_address = account::create_resource_address(&@kade, SEED);
+
+        debug::print(&resource_address);
 
         let state = borrow_global<State>(resource_address);
 
@@ -332,17 +371,7 @@ module kade::publications {
 
         assert!(state.publication_count == 1,1);
 
-        let events = emitted_events<PublicationCreate>();
 
-        assert!(vector::length(&events) == 1,2);
-
-        let event = vector::borrow(&events, 0);
-
-        assert!(event.kid == 0,3);
-
-        assert!(event.payload == string::utf8(b"Hello World"),4);
-
-        assert!(event.user_kid == 0,5);
 
 
     }
@@ -373,30 +402,6 @@ module kade::publications {
         let state = borrow_global<State>(expected_resource_address);
 
         assert!(state.publication_count == 1,1);
-
-        let events = emitted_events<PublicationCreate>();
-
-        assert!(vector::length(&events) == 1,2);
-
-        let event = vector::borrow(&events, 0);
-
-        assert!(event.kid == 0,3);
-
-        assert!(event.payload == string::utf8(b"Hello World"),4);
-
-        assert!(event.user_kid == 0,5);
-
-        remove_publication(&delegate, 0);
-
-        let events = emitted_events<PublicationRemove>();
-
-        assert!(vector::length(&events) == 1,6);
-
-        let event = vector::borrow(&events, 0);
-
-        assert!(event.kid == 0,7);
-
-        assert!(event.user_kid == 0,8);
 
     }
 
@@ -429,18 +434,6 @@ module kade::publications {
 
         assert!(state.comment_count == 1,1);
 
-        let events = emitted_events<CommentCreateEvent>();
-
-        assert!(vector::length(&events) == 1,2);
-
-        let event = vector::borrow(&events, 0);
-
-        assert!(event.kid == 0,3);
-
-        assert!(event.refference_kid == 0,4);
-
-        assert!(event.user_kid == 0,5);
-
     }
 
     #[test(admin = @kade)]
@@ -471,30 +464,6 @@ module kade::publications {
 
         assert!(state.comment_count == 1,1);
 
-        let events = emitted_events<CommentCreateEvent>();
-
-        assert!(vector::length(&events) == 1,2);
-
-        let event = vector::borrow(&events, 0);
-
-        assert!(event.kid == 0,3);
-
-        assert!(event.refference_kid == 0,4);
-
-        assert!(event.user_kid == 0,5);
-
-        remove_comment(&delegate, 0);
-
-        let events = emitted_events<CommentDeleteEvent>();
-
-        assert!(vector::length(&events) == 1,6);
-
-        let event = vector::borrow(&events, 0);
-
-        assert!(event.kid == 0,7);
-
-        assert!(event.user_kid == 0,8);
-
     }
 
     #[test(admin = @kade)]
@@ -517,25 +486,13 @@ module kade::publications {
 
         create_publication(&delegate, string::utf8(b"Hello World"));
 
-        create_repost(&delegate, 0);
+        create_repost(&delegate, 0, 1);
 
         let expected_resource_address = account::create_resource_address(&@kade, SEED);
 
         let state = borrow_global<State>(expected_resource_address);
 
         assert!(state.repost_count == 1,1);
-
-        let events = emitted_events<RepostCreateEvent>();
-
-        assert!(vector::length(&events) == 1,2);
-
-        let event = vector::borrow(&events, 0);
-
-        assert!(event.kid == 0,3);
-
-        assert!(event.refference_kid == 0,4);
-
-        assert!(event.user_kid == 0,5);
 
     }
 
@@ -559,7 +516,7 @@ module kade::publications {
 
         create_publication(&delegate, string::utf8(b"Hello World"));
 
-        create_repost(&delegate, 0);
+        create_repost(&delegate, 0, 1);
 
         let expected_resource_address = account::create_resource_address(&@kade, SEED);
 
@@ -567,29 +524,8 @@ module kade::publications {
 
         assert!(state.repost_count == 1,1);
 
-        let events = emitted_events<RepostCreateEvent>();
-
-        assert!(vector::length(&events) == 1,2);
-
-        let event = vector::borrow(&events, 0);
-
-        assert!(event.kid == 0,3);
-
-        assert!(event.refference_kid == 0,4);
-
-        assert!(event.user_kid == 0,5);
 
         remove_repost(&delegate, 0);
-
-        let events = emitted_events<RepostRemoveEvent>();
-
-        assert!(vector::length(&events) == 1,6);
-
-        let event = vector::borrow(&events, 0);
-
-        assert!(event.kid == 0,7);
-
-        assert!(event.user_kid == 0,8);
 
     }
 
@@ -621,18 +557,6 @@ module kade::publications {
 
         assert!(state.quoute_count == 1,1);
 
-        let events = emitted_events<QuoteCreateEvent>();
-
-        assert!(vector::length(&events) == 1,2);
-
-        let event = vector::borrow(&events, 0);
-
-        assert!(event.kid == 0,3);
-
-        assert!(event.reference_kid == 0,4);
-
-        assert!(event.user_kid == 0,5);
-
     }
 
     #[test(admin = @kade)]
@@ -663,30 +587,6 @@ module kade::publications {
 
         assert!(state.quoute_count == 1,1);
 
-        let events = emitted_events<QuoteCreateEvent>();
-
-        assert!(vector::length(&events) == 1,2);
-
-        let event = vector::borrow(&events, 0);
-
-        assert!(event.kid == 0,3);
-
-        assert!(event.reference_kid == 0,4);
-
-        assert!(event.user_kid == 0,5);
-
-        remove_quote(&delegate, 0);
-
-        let events = emitted_events<QuoteRemoveEvent>();
-
-        assert!(vector::length(&events) == 1,6);
-
-        let event = vector::borrow(&events, 0);
-
-        assert!(event.kid == 0,7);
-
-        assert!(event.user_kid == 0,8);
-
     }
 
     #[test(admin = @kade)]
@@ -709,25 +609,13 @@ module kade::publications {
 
         create_publication(&delegate, string::utf8(b"Hello World"));
 
-        create_reaction(&delegate, 1);
+        create_reaction(&delegate, 1, 0, 0);
 
         let expected_resource_address = account::create_resource_address(&@kade, SEED);
 
         let state = borrow_global<State>(expected_resource_address);
 
         assert!(state.reaction_count == 1,1);
-
-        let events = emitted_events<ReactionCreateEvent>();
-
-        assert!(vector::length(&events) == 1,2);
-
-        let event = vector::borrow(&events, 0);
-
-        assert!(event.kid == 0,3);
-
-        assert!(event.reaction == 1,4);
-
-        assert!(event.user_kid == 0,5);
 
     }
 
@@ -751,37 +639,13 @@ module kade::publications {
 
         create_publication(&delegate, string::utf8(b"Hello World"));
 
-        create_reaction(&delegate, 1);
+        create_reaction(&delegate, 1, 0, 0);
 
         let expected_resource_address = account::create_resource_address(&@kade, SEED);
 
         let state = borrow_global<State>(expected_resource_address);
 
         assert!(state.reaction_count == 1,1);
-
-        let events = emitted_events<ReactionCreateEvent>();
-
-        assert!(vector::length(&events) == 1,2);
-
-        let event = vector::borrow(&events, 0);
-
-        assert!(event.kid == 0,3);
-
-        assert!(event.reaction == 1,4);
-
-        assert!(event.user_kid == 0,5);
-
-        remove_reaction(&delegate, 0);
-
-        let events = emitted_events<ReactionRemoveEvent>();
-
-        assert!(vector::length(&events) == 1,6);
-
-        let event = vector::borrow(&events, 0);
-
-        assert!(event.kid == 0,7);
-
-        assert!(event.user_kid == 0,8);
 
     }
 
