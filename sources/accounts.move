@@ -535,6 +535,33 @@ module kade::accounts {
 
     }
 
+    #[test(admin = @kade, user = @0x23, delegate = @0x24)]
+    fun test_update_profile_success(admin: &signer, user: &signer, delegate: &signer) acquires State, LocalAccountReferences, KadeAccount, DelegateAccount {
+        let aptos_framework = account::create_account_for_test(@0x1);
+        account::create_account_for_test(@kade);
+        account::create_account_for_test(@0x233);
+        account::create_account_for_test(@0x234);
+        timestamp::set_time_has_started_for_testing(&aptos_framework);
+        let feature = features::get_module_event_feature();
+        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
+
+        init_module(admin);
+        usernames::invoke_init_module(admin);
+        let username = string::utf8(b"kade");
+        usernames::claim_username(user, username);
+        create_account(user, username);
+
+        add_account_delegate(user, delegate);
+
+        update_profile(delegate, string::utf8(b"pfp"), string::utf8(b"bio"), string::utf8(b"display_name"));
+
+        let resource_address  =account::create_resource_address(&@kade, SEED);
+        let state = borrow_global_mut<State>(resource_address);
+
+        assert!(event::counter(&state.profile_update_events) == 1, 1);
+
+    }
+
 
 
 }
