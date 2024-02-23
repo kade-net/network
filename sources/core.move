@@ -1,6 +1,6 @@
 
 
 
-module  kade::CORE {
+module  kade::core {
 
 }

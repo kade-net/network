@@ -4,12 +4,16 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-kade="0x80295eebe3af4acd76e7f693f016da172bd436496e679b80e468e41a6a9874aa"
+kade="0xcf00cd2fc17a06f9bf95a50c65d61e8d2f8f826eefa8d95dd68dbebf1bcaa432"
 [dev-addresses]
 
 [dependencies.AptosFramework]
 git = "https://github.com/aptos-labs/aptos-core.git"
 rev = "mainnet"
 subdir = "aptos-move/framework/aptos-framework"
+[dependencies.AptosTokenObjects]
+git = "https://github.com/aptos-labs/aptos-core.git"
+subdir = "aptos-move/framework/aptos-token-objects/"
+rev = "mainnet"
 
 [dev-dependencies]

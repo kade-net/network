@@ -16,8 +16,12 @@ module kade::publications {
     use std::features;
     #[test_only]
     use aptos_std::debug;
+    #[test_only]
+    use kade::usernames;
 
     const SEED: vector<u8> = b"kade::publicationsv1.0.3";
+
+    const EOperationNotPermitted: u64 = 101;
 
     struct State has key {
         publication_count: u64,
@@ -64,6 +68,7 @@ module kade::publications {
         delegate: address,
         type: u64, // comment 1 for comment on publication, 2 for comment on quoute, 3 for comment on comment
         timestamp: u64,
+        content: string::String
     }
 
     #[event]
@@ -172,6 +177,13 @@ module kade::publications {
         });
     }
 
+    // DEFER GAS FEES
+    public entry fun gd_create_publication(admin: &signer, delegate: &signer, payload: string::String) acquires State {
+        assert!(signer::address_of(admin) == @kade, EOperationNotPermitted);
+        create_publication(delegate, payload);
+    }
+
+
 
     public entry fun remove_publication(delegate: &signer, kid: u64) acquires State {
         let delegate_address = signer::address_of(delegate);
@@ -187,7 +199,7 @@ module kade::publications {
         });
     }
 
-    public entry fun create_comment(delegate: &signer, reference_kid: u64, type: u64) acquires State {
+    public entry fun create_comment(delegate: &signer, reference_kid: u64, type: u64, content: string::String) acquires State {
         let resource_address = account::create_resource_address(&@kade, SEED);
         let delegate_address = signer::address_of(delegate);
         let user_kid = accounts::get_delegate_owner(delegate);
@@ -201,8 +213,15 @@ module kade::publications {
             reference_kid,
             timestamp: timestamp::now_seconds(),
             type,
-            user_kid
+            user_kid,
+            content
         });
+    }
+
+    // DEFER GAS FEES
+    public entry fun gd_create_comment(admin: &signer, delegate: &signer, reference_kid: u64, type: u64, content: string::String) acquires State {
+        assert!(signer::address_of(admin) == @kade, EOperationNotPermitted);
+        create_comment(delegate, reference_kid, type, content);
     }
 
     public entry fun remove_comment(delegate: &signer, kid: u64) acquires State {
@@ -229,7 +248,7 @@ module kade::publications {
         state.repost_count = state.repost_count + 1;
 
 
-        event::emit(RepostCreateEvent {
+        event::emit_event(&mut state.repost_create_events, RepostCreateEvent {
             delegate: delegate_address,
             kid,
             reference_kid,
@@ -237,6 +256,12 @@ module kade::publications {
             user_kid,
             type
         })
+    }
+
+    // DEFER GAS FEES
+    public entry fun gd_create_repost(admin: &signer, delegate: &signer, reference_kid: u64, type: u64) acquires State {
+        assert!(signer::address_of(admin) == @kade, EOperationNotPermitted);
+        create_repost(delegate, reference_kid, type);
     }
 
     public entry fun remove_repost(delegate: &signer, kid: u64) acquires State {
@@ -273,6 +298,12 @@ module kade::publications {
         });
     }
 
+    // DEFER GAS FEES
+    public entry fun gd_create_quote(admin: &signer, delegate: &signer, reference_kid: u64, payload: string::String) acquires State {
+        assert!(signer::address_of(admin) == @kade, EOperationNotPermitted);
+        create_quote(delegate, reference_kid, payload);
+    }
+
     public entry fun remove_quote(delegate: &signer, kid: u64) acquires State {
         let delegate_address = signer::address_of(delegate);
         let user_kid = accounts::get_delegate_owner(delegate);
@@ -304,6 +335,12 @@ module kade::publications {
             reference_kid,
             type
         });
+    }
+
+    // DEFER GAS FEES
+    public entry fun gd_create_reaction(admin: &signer, delegate: &signer, reaction: u64, reference_kid: u64, type: u64) acquires State {
+        assert!(signer::address_of(admin) == @kade, EOperationNotPermitted);
+        create_reaction(delegate, reaction, reference_kid, type);
     }
 
     public entry fun remove_reaction(delegate: &signer, kid: u64) acquires State {
@@ -358,7 +395,9 @@ module kade::publications {
         features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
+        usernames::invoke_init_module(admin);
         init_module(admin);
+        usernames::claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);
@@ -390,7 +429,9 @@ module kade::publications {
         features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
+        usernames::invoke_init_module(admin);
         init_module(admin);
+        usernames::claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);
@@ -419,14 +460,16 @@ module kade::publications {
         features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
+        usernames::invoke_init_module(admin);
         init_module(admin);
+        usernames::claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);
 
         create_publication(&delegate, string::utf8(b"Hello World"));
 
-        create_comment(&delegate, 0, 1);
+        create_comment(&delegate, 0, 1, string::utf8(b"COOL"));
 
         let expected_resource_address = account::create_resource_address(&@kade, SEED);
 
@@ -449,14 +492,16 @@ module kade::publications {
         features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
+        usernames::invoke_init_module(admin);
         init_module(admin);
+        usernames::claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);
 
         create_publication(&delegate, string::utf8(b"Hello World"));
 
-        create_comment(&delegate, 0, 1);
+        create_comment(&delegate, 0, 1, string::utf8(b"COOL"));
 
         let expected_resource_address = account::create_resource_address(&@kade, SEED);
 
@@ -479,7 +524,9 @@ module kade::publications {
         features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
+        usernames::invoke_init_module(admin);
         init_module(admin);
+        usernames::claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);
@@ -509,7 +556,9 @@ module kade::publications {
         features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
+        usernames::invoke_init_module(admin);
         init_module(admin);
+        usernames::claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);
@@ -542,7 +591,9 @@ module kade::publications {
         features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
+        usernames::invoke_init_module(admin);
         init_module(admin);
+        usernames::claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);
@@ -572,7 +623,9 @@ module kade::publications {
         features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
+        usernames::invoke_init_module(admin);
         init_module(admin);
+        usernames::claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);
@@ -602,7 +655,9 @@ module kade::publications {
         features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
+        usernames::invoke_init_module(admin);
         init_module(admin);
+        usernames::claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);
@@ -632,7 +687,9 @@ module kade::publications {
         features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
+        usernames::invoke_init_module(admin);
         init_module(admin);
+        usernames::claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);

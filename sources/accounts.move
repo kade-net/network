@@ -11,6 +11,7 @@ module kade::accounts {
     use aptos_framework::event;
     use aptos_framework::object;
     use aptos_framework::timestamp;
+    use kade::usernames;
     #[test_only]
     use std::features;
     #[test_only]
@@ -23,6 +24,9 @@ module kade::accounts {
     // Error Codes
     // ===
     const EDelegateDoesNotExist:u64 = 20;
+    const EUsernameNotRegistered: u64 = 21;
+    const EUsernameNotOwned: u64 = 22;
+    const EOperationNotPermitted: u64 = 23;
 
     const SEED: vector<u8> = b"kade::accountsv1.0.3";
 
@@ -33,7 +37,6 @@ module kade::accounts {
     }
 
     struct KadeAccount has key, copy, drop {
-        username: string::String,
         delegates: vector<address>,
         kid: u64
     }
@@ -54,6 +57,7 @@ module kade::accounts {
         delegate_remove_events: event::EventHandle<DelegateRemoveEvent>,
         account_follow_events: event::EventHandle<AccountFollowEvent>,
         account_unfollow_events: event::EventHandle<AccountUnFollowEvent>,
+        profile_update_events: event::EventHandle<ProfileUpdateEvent>,
     }
 
     #[event]
@@ -104,6 +108,16 @@ module kade::accounts {
         timestamp: u64,
     }
 
+    #[event]
+    struct ProfileUpdateEvent has store, drop {
+        user_kid: u64,
+        delegate: address,
+        timestamp: u64,
+        pfp: string::String,
+        bio: string::String,
+        display_name: string::String,
+    }
+
     fun init_module(admin: &signer) {
         let (resource_signer, signer_capability) = account::create_resource_account(admin, SEED);
 
@@ -117,6 +131,7 @@ module kade::accounts {
             delegate_remove_events: account::new_event_handle(&resource_signer),
             account_follow_events: account::new_event_handle(&resource_signer),
             account_unfollow_events: account::new_event_handle(&resource_signer),
+            profile_update_events: account::new_event_handle(&resource_signer),
         })
     }
 
@@ -124,7 +139,14 @@ module kade::accounts {
 
     public entry fun create_account(user: &signer, username: string::String)acquires State {
 
+        let username_exists = usernames::is_username_claimed(username);
+        assert!(username_exists, EUsernameNotRegistered);
+
+        let owns_username = usernames::is_address_username_owner(signer::address_of(user), username);
+        assert!(owns_username, EUsernameNotOwned);
+
         let user_address = signer::address_of(user);
+        assert!(!exists<LocalAccountReferences>(user_address), 1);
         let resource_address = account::create_resource_address(&@kade, SEED);
         let state = borrow_global_mut<State>(resource_address);
 
@@ -146,7 +168,6 @@ module kade::accounts {
         });
 
         let new_account = KadeAccount {
-            username,
             delegates: vector::empty(),
             kid: state.registry_count,
         };
@@ -162,6 +183,12 @@ module kade::accounts {
             kid: new_account.kid,
             timestamp: timestamp::now_seconds(),
         })
+    }
+
+    // DEFER GAS FEES to kade
+    public entry fun gd_create_account(admin: &signer, user: &signer, username: string::String) acquires State  {
+        assert!(signer::address_of(admin) == @kade, EOperationNotPermitted);
+        create_account(user, username);
     }
 
     public entry fun add_account_delegate(user: &signer, delegate: &signer) acquires  LocalAccountReferences, KadeAccount, State {
@@ -197,6 +224,11 @@ module kade::accounts {
         })
     }
 
+    // DEFER GAS FEES to kade
+    public entry fun gd_add_account_delegate(admin: &signer, user: &signer, delegate: &signer) acquires LocalAccountReferences, KadeAccount, State {
+        assert!(signer::address_of(admin) == @kade, EOperationNotPermitted);
+        add_account_delegate(user, delegate);
+    }
 
     public entry fun remove_account_delegate(user: &signer, delegate_address: address) acquires LocalAccountReferences, KadeAccount, DelegateAccount, State {
         let resource_address = account::create_resource_address(&@kade, SEED);
@@ -217,6 +249,22 @@ module kade::accounts {
             owner_address: user_address,
             kid: delegate_data.kid,
             timestamp: timestamp::now_seconds(),
+        })
+    }
+
+    public entry fun update_profile(delegate: &signer, pfp: string::String, bio: string::String, display_name: string::String) acquires KadeAccount, State, DelegateAccount {
+        let resource_address  =account::create_resource_address(&@kade, SEED);
+        let state = borrow_global_mut<State>(resource_address);
+        let user_kid = get_delegate_owner(delegate);
+
+
+        event::emit_event(&mut state.profile_update_events, ProfileUpdateEvent {
+            delegate: signer::address_of(delegate),
+            user_kid,
+            timestamp: timestamp::now_seconds(),
+            pfp,
+            bio,
+            display_name,
         })
     }
 
@@ -294,6 +342,8 @@ module kade::accounts {
     #[test_only]
     public(friend)  fun invoke_init_module(admin: &signer) {
         init_module(admin);
+
+
     }
 
 
@@ -330,6 +380,8 @@ module kade::accounts {
 
         init_module(admin);
         let username = string::utf8(b"kade");
+        usernames::invoke_init_module(admin);
+        usernames::claim_username(user, username);
         create_account(user, username);
 
         let resource_address = account::create_resource_address(&@kade, SEED);
@@ -340,8 +392,6 @@ module kade::accounts {
         let local_account_ref = borrow_global<LocalAccountReferences>(signer::address_of(user));
 
         let account = borrow_global<KadeAccount>(local_account_ref.object_address);
-
-        assert!(account.username == username, 3);
 
         assert!(account.kid == 0, 4);
 
@@ -361,6 +411,8 @@ module kade::accounts {
 
         init_module(admin);
         let username = string::utf8(b"kade");
+        usernames::invoke_init_module(admin);
+        usernames::claim_username(user, username);
         create_account(user, username);
 
         add_account_delegate(user, delegate);
@@ -394,7 +446,9 @@ module kade::accounts {
         features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         init_module(admin);
+        usernames::invoke_init_module(admin);
         let username = string::utf8(b"kade");
+        usernames::claim_username(user, username);
         create_account(user, username);
 
         add_account_delegate(user, delegate);
@@ -427,9 +481,13 @@ module kade::accounts {
         features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         init_module(admin);
+        usernames::invoke_init_module(admin);
         let username = string::utf8(b"kade");
+        let username_2 = string::utf8(b"kade2");
+        usernames::claim_username(user1, username);
         create_account(user1, username);
-        create_account(user2, username);
+        usernames::claim_username(user2, username_2);
+        create_account(user2, username_2);
 
         add_account_delegate(user1, delegate);
 
@@ -456,9 +514,13 @@ module kade::accounts {
         features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         init_module(admin);
+        usernames::invoke_init_module(admin);
         let username = string::utf8(b"kade");
+        let username_2 = string::utf8(b"kade2");
+        usernames::claim_username(user1, username);
         create_account(user1, username);
-        create_account(user2, username);
+        usernames::claim_username(user2, username_2);
+        create_account(user2, username_2);
 
         add_account_delegate(user1, delegate);
 
