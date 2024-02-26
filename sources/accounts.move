@@ -4,6 +4,7 @@
 **/
 
 module kade::accounts {
+    use std::option;
     use std::signer;
     use std::string;
     use std::vector;
@@ -34,6 +35,7 @@ module kade::accounts {
         transfer_ref: object::TransferRef,
         delete_ref: object::DeleteRef,
         object_address: address,
+        last_delegate_link_intent: option::Option<address>
     }
 
     struct KadeAccount has key, copy, drop {
@@ -164,7 +166,8 @@ module kade::accounts {
         move_to(user, LocalAccountReferences {
             transfer_ref,
             delete_ref,
-            object_address
+            object_address,
+            last_delegate_link_intent: option::none(),
         });
 
         let new_account = KadeAccount {
@@ -222,6 +225,59 @@ module kade::accounts {
             kid: delegate_kid,
             timestamp: timestamp::now_seconds(),
         })
+    }
+
+    public entry fun delegate_link_intent(user: &signer, delegate: address) acquires LocalAccountReferences {
+        let user_address = signer::address_of(user);
+        let local_account_ref = borrow_global_mut<LocalAccountReferences>(user_address);
+        local_account_ref.last_delegate_link_intent = option::some(delegate);
+    }
+
+    public entry fun account_link_intent(delegate: &signer, user_address: address) acquires LocalAccountReferences, State, KadeAccount {
+        let account = borrow_global_mut<LocalAccountReferences>(user_address);
+        assert!(option::is_some(&account.last_delegate_link_intent), EOperationNotPermitted);
+        let intended_delegate = *option::borrow(&account.last_delegate_link_intent);
+        assert!(intended_delegate == signer::address_of(delegate), EOperationNotPermitted);
+        account.last_delegate_link_intent = option::none();
+
+        let resource_address = account::create_resource_address(&@kade, SEED);
+        let state  = borrow_global_mut<State>(resource_address);
+        let object_address = account.object_address;
+
+        let kade_account = borrow_global_mut<KadeAccount>(object_address);
+
+        let delegate_address = signer::address_of(delegate);
+
+        vector::push_back(&mut kade_account.delegates, delegate_address);
+        let delegate_kid = state.delegates_count;
+        let delegate_data = DelegateAccount {
+            owner: user_address,
+            account_object_address: account.object_address,
+            kid: delegate_kid,
+        };
+
+        move_to<DelegateAccount>(delegate,delegate_data );
+
+        state.delegates_count = state.delegates_count + 1;
+
+        event::emit_event(&mut state.delegate_creation_events, DelegateCreateEvent {
+            delegate_address,
+            object_address,
+            owner_address: user_address,
+            kid: delegate_kid,
+            timestamp: timestamp::now_seconds(),
+        })
+
+    }
+
+    public entry fun create_account_and_add_delegate(user: &signer, delegate: &signer, username: string::String) acquires LocalAccountReferences, KadeAccount, State {
+        create_account(user, username);
+        add_account_delegate(user, delegate);
+    }
+
+    public entry fun create_account_and_delegate_link_intent(user: &signer, delegate: address, username: string::String) acquires LocalAccountReferences, State {
+        create_account(user, username);
+        delegate_link_intent(user, delegate);
     }
 
     // DEFER GAS FEES to kade
@@ -559,6 +615,69 @@ module kade::accounts {
         let state = borrow_global_mut<State>(resource_address);
 
         assert!(event::counter(&state.profile_update_events) == 1, 1);
+
+    }
+
+    #[test]
+    fun test_test_delegate_link_intent() acquires State, LocalAccountReferences, KadeAccount {
+        let kade = account::create_account_for_test(@kade);
+        let aptos_framework = account::create_account_for_test(@0x1);
+        let delegate = account::create_account_for_test(@0x2);
+
+        let feature = features::get_module_event_feature();
+        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
+        timestamp::set_time_has_started_for_testing(&aptos_framework);
+
+        init_module(&kade);
+        usernames::invoke_init_module(&kade);
+        let username = string::utf8(b"kade");
+        usernames::claim_username(&kade, username);
+        create_account(&kade, username);
+
+        delegate_link_intent(&kade, signer::address_of(&delegate));
+        account_link_intent(&delegate, signer::address_of(&kade));
+
+
+    }
+
+    #[test]
+    #[expected_failure(abort_code = EOperationNotPermitted)]
+    fun test_delegate_link_intent_failure() acquires State, LocalAccountReferences, KadeAccount {
+        let kade = account::create_account_for_test(@kade);
+        let aptos_framework = account::create_account_for_test(@0x1);
+        let delegate = account::create_account_for_test(@0x2);
+        let delegate2 = account::create_account_for_test(@0x3);
+
+        let feature = features::get_module_event_feature();
+        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
+
+        timestamp::set_time_has_started_for_testing(&aptos_framework);
+
+        init_module(&kade);
+        usernames::invoke_init_module(&kade);
+        let username = string::utf8(b"kade");
+        usernames::claim_username(&kade, username);
+        create_account(&kade, username);
+
+        delegate_link_intent(&kade, signer::address_of(&delegate));
+        account_link_intent(&delegate2, signer::address_of(&kade));
+    }
+
+    #[test]
+    fun test_create_account_and_delegate_link_intent() acquires State, LocalAccountReferences {
+        let kade = account::create_account_for_test(@kade);
+        let aptos_framework = account::create_account_for_test(@0x1);
+        let delegate = account::create_account_for_test(@0x2);
+
+        let feature = features::get_module_event_feature();
+        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
+        timestamp::set_time_has_started_for_testing(&aptos_framework);
+
+        init_module(&kade);
+        usernames::invoke_init_module(&kade);
+        let username = string::utf8(b"kade");
+        usernames::claim_username(&kade, username);
+        create_account_and_delegate_link_intent(&kade, signer::address_of(&delegate), username);
 
     }
 

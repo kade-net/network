@@ -16,6 +16,8 @@ module kade::usernames {
     use aptos_framework::timestamp;
     use aptos_token_objects::collection;
     use aptos_token_objects::token;
+    #[test_only]
+    use aptos_std::debug;
 
     friend kade::accounts;
     friend kade::publications;
@@ -178,6 +180,8 @@ module kade::usernames {
 
         let expected_resource_address = account::create_resource_address(&@kade, SEED);
 
+        debug::print(&expected_resource_address);
+
         let registry = borrow_global<UsernameRegistry>(expected_resource_address);
 
         assert!(registry.registered_usernames == 0, 1)
@@ -234,7 +238,7 @@ module kade::usernames {
         init_module(&admin_signer);
 
         internal_claim_username(string::utf8(b"kade"), @kade);
-        internal_claim_username(string::utf8(b"kade"), @kade);
+        internal_claim_username(string::utf8(b"kade"), @0x6);
     }
 
     #[test]
