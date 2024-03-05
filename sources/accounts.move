@@ -28,8 +28,9 @@ module kade::accounts {
     const EUsernameNotRegistered: u64 = 21;
     const EUsernameNotOwned: u64 = 22;
     const EOperationNotPermitted: u64 = 23;
+    const EDoesNotExists: u64 = 24;
 
-    const SEED: vector<u8> = b"kade::accountsv1.0.3";
+    const SEED: vector<u8> = b"kade::accountsv0.0.5";
 
     struct LocalAccountReferences has key {
         transfer_ref: object::TransferRef,
@@ -106,8 +107,8 @@ module kade::accounts {
     struct AccountUnFollowEvent has store, drop {
         delegate: address,
         user_kid: u64,
-        kid: u64,
         timestamp: u64,
+        unfollowing_kid: u64,
     }
 
     #[event]
@@ -124,10 +125,10 @@ module kade::accounts {
         let (resource_signer, signer_capability) = account::create_resource_account(admin, SEED);
 
         move_to(&resource_signer, State {
-            registry_count: 0,
+            registry_count: 100, // reserve 0-99 for error codes and possible system accounts
             signer_capability,
-            relations_count: 0,
-            delegates_count: 0,
+            relations_count: 100, // reserve 0-99 for error codes and possible system accounts
+            delegates_count: 100, // reserve 0-99 for error codes and possible system accounts
             account_creation_events: account::new_event_handle(&resource_signer),
             delegate_creation_events: account::new_event_handle(&resource_signer),
             delegate_remove_events: account::new_event_handle(&resource_signer),
@@ -167,7 +168,7 @@ module kade::accounts {
             transfer_ref,
             delete_ref,
             object_address,
-            last_delegate_link_intent: option::none(),
+            last_delegate_link_intent: option::none()
         });
 
         let new_account = KadeAccount {
@@ -280,6 +281,13 @@ module kade::accounts {
         delegate_link_intent(user, delegate);
     }
 
+    public entry fun account_setup_with_self_delegate(user: &signer, username: string::String) acquires LocalAccountReferences, State, KadeAccount {
+        usernames::claim_username(user, username);
+        create_account(user, username);
+        delegate_link_intent(user, signer::address_of(user));
+        account_link_intent(user, signer::address_of(user));
+    }
+
     // DEFER GAS FEES to kade
     public entry fun gd_add_account_delegate(admin: &signer, user: &signer, delegate: &signer) acquires LocalAccountReferences, KadeAccount, State {
         assert!(signer::address_of(admin) == @kade, EOperationNotPermitted);
@@ -358,10 +366,12 @@ module kade::accounts {
 
     }
 
-    public entry fun unfollow_account(delegate: &signer, kid: u64)acquires DelegateAccount, KadeAccount, State {
+    public entry fun unfollow_account(delegate: &signer, unfollowing_address: address)acquires DelegateAccount, KadeAccount, State, LocalAccountReferences {
 
         let delegate_address = signer::address_of(delegate);
         let user_kid = get_delegate_owner(delegate);
+        let unfollowing_account_ref = borrow_global<LocalAccountReferences>(unfollowing_address);
+        let unfollowing_kid = get_account_owner(unfollowing_account_ref.object_address).kid;
 
         let resource_address  =account::create_resource_address(&@kade, SEED);
         let state = borrow_global_mut<State>(resource_address);
@@ -369,7 +379,7 @@ module kade::accounts {
         event::emit_event(&mut state.account_unfollow_events, AccountUnFollowEvent {
             delegate: delegate_address,
             user_kid,
-            kid,
+             unfollowing_kid,
             timestamp: timestamp::now_seconds(),
         })
     }
@@ -392,6 +402,30 @@ module kade::accounts {
     public(friend) fun get_account_owner(account_address: address): KadeAccount acquires KadeAccount {
         let account_data = *borrow_global<KadeAccount>(account_address);
         account_data
+    }
+
+    #[view]
+    public fun get_account(account_address: address): (u64, vector<address>) acquires KadeAccount, LocalAccountReferences {
+
+        if(!exists<LocalAccountReferences>(account_address)){
+             return (0, vector::empty<address>())
+        };
+        let ref = borrow_global<LocalAccountReferences>(account_address);
+        if(!exists<KadeAccount>(ref.object_address)){
+            return (0, vector::empty<address>())
+        };
+        let account_data = borrow_global<KadeAccount>(ref.object_address);
+        (account_data.kid, account_data.delegates)
+    }
+
+    #[view]
+    public fun delegate_get_owner(delegate_address: address): (u64, address) acquires DelegateAccount, KadeAccount {
+        if(!exists<DelegateAccount>(delegate_address)){
+            return (0, @0x0)
+        };
+        let data = borrow_global<DelegateAccount>(delegate_address);
+        let account_data = borrow_global<KadeAccount>(data.account_object_address);
+        (account_data.kid, data.owner)
     }
 
 
@@ -419,7 +453,7 @@ module kade::accounts {
 
         let state = borrow_global<State>(expeected_resource_address);
 
-        assert!(state.registry_count == 0, 1);
+        assert!(state.registry_count == 100, 1);
 
 
     }
@@ -449,7 +483,7 @@ module kade::accounts {
 
         let account = borrow_global<KadeAccount>(local_account_ref.object_address);
 
-        assert!(account.kid == 0, 4);
+        assert!(account.kid == 100, 4);
 
         assert!(vector::length(&account.delegates) == 0, 5);
 
@@ -582,7 +616,7 @@ module kade::accounts {
 
         follow_account(delegate, signer::address_of(user2));
 
-        unfollow_account(delegate, 0);
+        unfollow_account(delegate, signer::address_of(user2));
 
         let resource_address  =account::create_resource_address(&@kade, SEED);
         let state = borrow_global_mut<State>(resource_address);
@@ -678,6 +712,23 @@ module kade::accounts {
         let username = string::utf8(b"kade");
         usernames::claim_username(&kade, username);
         create_account_and_delegate_link_intent(&kade, signer::address_of(&delegate), username);
+
+    }
+
+
+    #[test]
+    fun test_account_setup_with_self_delegate() acquires State, LocalAccountReferences, KadeAccount {
+        let kade = account::create_account_for_test(@kade);
+        let aptos_framework = account::create_account_for_test(@0x1);
+
+        let feature = features::get_module_event_feature();
+        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
+        timestamp::set_time_has_started_for_testing(&aptos_framework);
+
+        init_module(&kade);
+        usernames::invoke_init_module(&kade);
+        let username = string::utf8(b"kade");
+        account_setup_with_self_delegate(&kade, username);
 
     }
 
