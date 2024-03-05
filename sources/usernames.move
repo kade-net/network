@@ -22,13 +22,13 @@ module kade::usernames {
     friend kade::accounts;
     friend kade::publications;
 
-    const SEED:vector<u8> = b"usernames";
+    const SEED:vector<u8> = b"kade::usernamesv0.0.5";
 
     const COLLECTION_NAME: vector<u8> = b"Kade Usernames Registry";
-    const COLLECTION_DESCRIPTION: vector<u8> = b"Collection of Kade's Registered Usernames";
+    const COLLECTION_DESCRIPTION: vector<u8> = b"Kade's Registered Usernames";
     const COLLECTION_URI: vector<u8> = b"https://kade.network"; // TODO: change to metadata url
 
-    const IDENTITY_IMAGE:vector<u8> = b"";
+    const IDENTITY_IMAGE:vector<u8> = b"https://orange-urban-sloth-806.mypinata.cloud/ipfs/QmP2uYhKYUHSB587AfQvLb7hdeN5vTpfp6MC81KL98mf5E";
 
 
     //  Errors
@@ -71,7 +71,7 @@ module kade::usernames {
         let registry = UsernameRegistry {
             signer_capability,
             registration_events: account::new_event_handle(&resource_account_signer),
-            registered_usernames: 0
+            registered_usernames: 100 // The first 100 ids are reserved for system error codes
         };
 
         move_to<UsernameRegistry>(&resource_account_signer, registry);
@@ -167,6 +167,14 @@ module kade::usernames {
         }
     }
 
+    #[view]
+    public fun get_username_token_address(username: string::String): address {
+        let resource_address = account::create_resource_address(&@kade, SEED);
+        let token_address = token::create_token_address(&resource_address, &string::utf8(COLLECTION_NAME), &username);
+
+        token_address
+    }
+
 
     // =====
     // TESTS
@@ -184,7 +192,7 @@ module kade::usernames {
 
         let registry = borrow_global<UsernameRegistry>(expected_resource_address);
 
-        assert!(registry.registered_usernames == 0, 1)
+        assert!(registry.registered_usernames == 100, 1)
 
     }
 
@@ -203,7 +211,7 @@ module kade::usernames {
 
         let registry = borrow_global<UsernameRegistry>(expected_resource_address);
 
-        assert!(registry.registered_usernames == 1, 1);
+        assert!(registry.registered_usernames == 101, 1);
 
         let count = event::counter(&registry.registration_events);
 
@@ -271,7 +279,7 @@ module kade::usernames {
 
         let registry = borrow_global<UsernameRegistry>(expected_resource_address);
 
-        assert!(registry.registered_usernames == 1, 1);
+        assert!(registry.registered_usernames == 101, 1);
 
         let count = event::counter(&registry.registration_events);
 
