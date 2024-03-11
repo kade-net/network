@@ -286,7 +286,10 @@ module kade::publications {
         });
     }
 
-
+    #[test_only]
+    public fun dependancy_test_init_module(test_admin: &signer) {
+        init_module(test_admin);
+    }
 
     // ====
     // Tests
