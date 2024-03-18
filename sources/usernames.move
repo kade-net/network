@@ -113,6 +113,8 @@ module kade::usernames {
 
         object::transfer(&resource_signer, record_obj, address);
 
+        object::disable_ungated_transfer(&object::generate_transfer_ref(&constructor_ref));
+
         // Increment the registry names
         registry.registered_usernames = registry.registered_usernames + 1;
 
