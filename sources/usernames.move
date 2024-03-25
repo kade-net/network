@@ -22,7 +22,7 @@ module kade::usernames {
     friend kade::accounts;
     friend kade::publications;
 
-    const SEED:vector<u8> = b"kade::usernamesv0.0.5";
+    const SEED:vector<u8> = b"kade::usernamesv1";
 
     const COLLECTION_NAME: vector<u8> = b"Kade Usernames Registry";
     const COLLECTION_DESCRIPTION: vector<u8> = b"Kade's Registered Usernames";
@@ -34,6 +34,7 @@ module kade::usernames {
     //  Errors
     const EOperationNotPermited: u64 = 200;
     const EUsernameAlreadyClaimed: u64 = 201;
+    const EINVALID_USERNAME: u64 = 202;
 
     struct RegisterUsernameEvent has store, drop {
         username: string::String,
@@ -79,6 +80,9 @@ module kade::usernames {
 
 
     fun internal_claim_username(username: string::String, address: address) acquires UsernameRegistry {
+        let string_length = string::length(&username);
+        assert!(string_length < 10, EINVALID_USERNAME);
+
         let resource_address = account::create_resource_address(&@kade, SEED);
 
         let registry = borrow_global_mut<UsernameRegistry>(resource_address);
@@ -127,7 +131,7 @@ module kade::usernames {
 
     }
 
-    public entry fun claim_username(user: &signer, username: string::String) acquires  UsernameRegistry {
+    public(friend) entry fun claim_username(user: &signer, username: string::String) acquires  UsernameRegistry {
         internal_claim_username(username, signer::address_of(user));
     }
 

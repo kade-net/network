@@ -20,7 +20,7 @@ module kade::publications {
     #[test_only]
     use kade::usernames;
 
-    const SEED: vector<u8> = b"kade::publicationsv0.0.5";
+    const SEED: vector<u8> = b"kade::publicationsv1";
 
     const EOperationNotPermitted: u64 = 101;
 

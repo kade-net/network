@@ -30,13 +30,14 @@ module kade::accounts {
     const EOperationNotPermitted: u64 = 23;
     const EDoesNotExists: u64 = 24;
 
-    const SEED: vector<u8> = b"kade::accountsv0.0.5";
+    const SEED: vector<u8> = b"kade::accountsv1";
 
     struct LocalAccountReferences has key {
         transfer_ref: object::TransferRef,
         delete_ref: object::DeleteRef,
         object_address: address,
-        last_delegate_link_intent: option::Option<address>
+        last_delegate_link_intent: option::Option<address>,
+        username: string::String, // transfering and deletion will be implemented in v2
     }
 
     struct KadeAccount has key, copy, drop {
@@ -168,7 +169,8 @@ module kade::accounts {
             transfer_ref,
             delete_ref,
             object_address,
-            last_delegate_link_intent: option::none()
+            last_delegate_link_intent: option::none(),
+            username
         });
 
         let new_account = KadeAccount {
@@ -281,7 +283,8 @@ module kade::accounts {
         delegate_link_intent(user, delegate);
     }
 
-    public entry fun account_setup_with_self_delegate(user: &signer, username: string::String) acquires LocalAccountReferences, State, KadeAccount {
+    public entry fun gd_account_setup_with_self_delegate(admin: &signer, user: &signer, username: string::String) acquires LocalAccountReferences, State, KadeAccount {
+        assert!(signer::address_of(admin) == @kade, EOperationNotPermitted);
         usernames::claim_username(user, username);
         create_account(user, username);
         delegate_link_intent(user, signer::address_of(user));
@@ -733,8 +736,7 @@ module kade::accounts {
         init_module(&kade);
         usernames::invoke_init_module(&kade);
         let username = string::utf8(b"kade");
-        account_setup_with_self_delegate(&kade, username);
-
+        gd_account_setup_with_self_delegate(&kade,&kade, username);
     }
 
 
