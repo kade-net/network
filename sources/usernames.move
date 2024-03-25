@@ -81,7 +81,7 @@ module kade::usernames {
 
     fun internal_claim_username(username: string::String, address: address) acquires UsernameRegistry {
         let string_length = string::length(&username);
-        assert!(string_length < 10, EINVALID_USERNAME);
+        assert!(string_length < 32, EINVALID_USERNAME);
 
         let resource_address = account::create_resource_address(&@kade, SEED);
 
