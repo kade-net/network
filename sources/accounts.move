@@ -8,6 +8,7 @@ module kade::accounts {
     use std::signer;
     use std::string;
     use std::vector;
+    use aptos_std::string_utils;
     use aptos_framework::account;
     use aptos_framework::event;
     use aptos_framework::object;
@@ -42,7 +43,9 @@ module kade::accounts {
 
     struct KadeAccount has key, copy, drop {
         delegates: vector<address>,
-        kid: u64
+        kid: u64,
+        publication_kid_count: u64,
+        follow_kid_count: u64
     }
 
     struct DelegateAccount has key, drop {
@@ -176,6 +179,8 @@ module kade::accounts {
         let new_account = KadeAccount {
             delegates: vector::empty(),
             kid: state.registry_count,
+            follow_kid_count: 0,
+            publication_kid_count: 0
         };
 
         move_to(&object_signer, new_account);
@@ -338,8 +343,6 @@ module kade::accounts {
 
     // TODO: transfer account
     // TODO: delete account
-    // TODO: follow account events
-    // TODO: unfollow account events
 
     public entry fun follow_account(delegate: &signer, following_address: address) acquires KadeAccount,State, DelegateAccount, LocalAccountReferences {
         let resource_address  =account::create_resource_address(&@kade, SEED);
@@ -355,6 +358,7 @@ module kade::accounts {
 
         let follower = get_account_owner(delegate.account_object_address);
         let following = get_account_owner(localAccountData.object_address);
+        increment_follow_kid(delegate.account_object_address);
 
         event::emit_event(&mut state.account_follow_events, AccountFollowEvent {
             follower_kid: follower.kid,
@@ -402,9 +406,38 @@ module kade::accounts {
 
     }
 
+
+    public (friend) fun get_delegate_owner_address(delegate: &signer): address acquires DelegateAccount {
+        let delegate_address = signer::address_of(delegate);
+        assert!(exists<DelegateAccount>(delegate_address), EDelegateDoesNotExist);
+
+        let data = borrow_global<DelegateAccount>(delegate_address);
+
+        data.owner
+    }
+
     public(friend) fun get_account_owner(account_address: address): KadeAccount acquires KadeAccount {
         let account_data = *borrow_global<KadeAccount>(account_address);
         account_data
+    }
+
+    inline fun increment_follow_kid(account_address: address) acquires KadeAccount {
+        let account_data = borrow_global_mut<KadeAccount>(account_address);
+        account_data.follow_kid_count = account_data.follow_kid_count + 1;
+    }
+
+    public(friend) fun increment_publication_kid(user: address) acquires KadeAccount, LocalAccountReferences {
+        let local =  borrow_global<LocalAccountReferences>(user);
+        let account_data = borrow_global_mut<KadeAccount>(local.object_address);
+        account_data.publication_kid_count = account_data.publication_kid_count + 1
+    }
+
+    public(friend) fun get_publication_ref(user: address): string::String acquires KadeAccount, LocalAccountReferences {
+        let local = borrow_global<LocalAccountReferences>(user);
+        let account_data = borrow_global<KadeAccount>(local.object_address);
+        let username = local.username;
+        let ref = string_utils::format2(&b"publication:{}:{}",username, account_data.publication_kid_count );
+        return ref
     }
 
     #[view]
@@ -431,6 +464,15 @@ module kade::accounts {
         (account_data.kid, data.owner)
     }
 
+    #[view]
+    public fun get_current_username(user: address): string::String acquires LocalAccountReferences {
+        let local = borrow_global<LocalAccountReferences>(user);
+        let username = local.username;
+        return username
+    }
+
+    // TODO: get the account local object
+    // TODO: get the account KadeAccount object
 
     #[test_only]
     public(friend)  fun invoke_init_module(admin: &signer) {

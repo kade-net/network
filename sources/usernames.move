@@ -8,6 +8,7 @@ module kade::usernames {
     use std::option;
     use std::signer;
     use std::string;
+    use std::vector;
     use aptos_framework::account;
     use aptos_framework::event;
     use aptos_framework::event::emit_event;
@@ -82,6 +83,9 @@ module kade::usernames {
     fun internal_claim_username(username: string::String, address: address) acquires UsernameRegistry {
         let string_length = string::length(&username);
         assert!(string_length < 32, EINVALID_USERNAME);
+        let index_of_empty_string = string::index_of(&username, &string::utf8(b" "));
+        assert!(index_of_empty_string == string_length, EINVALID_USERNAME);
+        assert_has_no_special_characters(username);
 
         let resource_address = account::create_resource_address(&@kade, SEED);
 
@@ -131,7 +135,7 @@ module kade::usernames {
 
     }
 
-    public(friend) entry fun claim_username(user: &signer, username: string::String) acquires  UsernameRegistry {
+    public entry fun claim_username(user: &signer, username: string::String) acquires  UsernameRegistry {
         internal_claim_username(username, signer::address_of(user));
     }
 
@@ -180,6 +184,65 @@ module kade::usernames {
 
         token_address
     }
+
+
+    // ======
+    // Helper functions
+    // =====
+    inline fun assert_has_no_special_characters(username: string::String){
+        let string_length = string::length(&username);
+        assert!(string_length < 32, EINVALID_USERNAME);
+        let index_of_empty_string = string::index_of(&username, &string::utf8(b" "));
+        assert!(index_of_empty_string == string_length, EINVALID_USERNAME);
+
+        let special_characters = vector::empty<string::String>();
+        vector::push_back(&mut special_characters, string::utf8(b"!"));
+        vector::push_back(&mut special_characters, string::utf8(b"@"));
+        vector::push_back(&mut special_characters, string::utf8(b"#"));
+        vector::push_back(&mut special_characters, string::utf8(b"$"));
+        vector::push_back(&mut special_characters, string::utf8(b"%"));
+        vector::push_back(&mut special_characters, string::utf8(b"^"));
+        vector::push_back(&mut special_characters, string::utf8(b"&"));
+        vector::push_back(&mut special_characters, string::utf8(b"*"));
+        vector::push_back(&mut special_characters, string::utf8(b"("));
+        vector::push_back(&mut special_characters, string::utf8(b")"));
+        vector::push_back(&mut special_characters, string::utf8(b"-"));
+        vector::push_back(&mut special_characters, string::utf8(b"+"));
+        vector::push_back(&mut special_characters, string::utf8(b"="));
+        vector::push_back(&mut special_characters, string::utf8(b"["));
+        vector::push_back(&mut special_characters, string::utf8(b"]"));
+        vector::push_back(&mut special_characters, string::utf8(b"{"));
+        vector::push_back(&mut special_characters, string::utf8(b"}"));
+        vector::push_back(&mut special_characters, string::utf8(b"|"));
+        vector::push_back(&mut special_characters, string::utf8(b";"));
+        vector::push_back(&mut special_characters, string::utf8(b":"));
+        vector::push_back(&mut special_characters, string::utf8(b"'"));
+        vector::push_back(&mut special_characters, string::utf8(b"\""));
+        vector::push_back(&mut special_characters, string::utf8(b"<"));
+        vector::push_back(&mut special_characters, string::utf8(b">"));
+        vector::push_back(&mut special_characters, string::utf8(b","));
+        vector::push_back(&mut special_characters, string::utf8(b"."));
+        vector::push_back(&mut special_characters, string::utf8(b"/"));
+        vector::push_back(&mut special_characters, string::utf8(b"?"));
+        vector::push_back(&mut special_characters, string::utf8(b"`"));
+        vector::push_back(&mut special_characters, string::utf8(b"~"));
+        vector::push_back(&mut special_characters, string::utf8(b" "));
+        vector::push_back(&mut special_characters, string::utf8(b"\t"));
+        vector::push_back(&mut special_characters, string::utf8(b"\n"));
+        vector::push_back(&mut special_characters, string::utf8(b"\r"));
+        vector::push_back(&mut special_characters, string::utf8(b"\0"));
+
+        let current_index = 0;
+        let special_characters_length = vector::length(&special_characters);
+        while(current_index < special_characters_length) {
+            let special_character = vector::borrow(&special_characters, current_index);
+            let index_of_special_character = string::index_of(&username, special_character);
+            assert!(index_of_special_character == string_length, EINVALID_USERNAME);
+            current_index = current_index + 1;
+        }
+
+    }
+
 
     #[test_only]
     public fun dependancy_test_init_module(test_admin: &signer) {
@@ -272,6 +335,20 @@ module kade::usernames {
 
         claim_username(&user, string::utf8(b"jurassic"));
 
+    }
+
+    #[test]
+    #[expected_failure(abort_code = EINVALID_USERNAME)]
+    fun test_invalid_username() acquires  UsernameRegistry {
+        let admin_signer = account::create_account_for_test(@kade);
+        let user = account::create_account_for_test(@0x5);
+        let aptos = account::create_account_for_test(@0x1);
+
+        timestamp::set_time_has_started_for_testing(&aptos);
+
+        init_module(&admin_signer);
+
+        claim_username(&user, string::utf8(b"jurassic p#rk"));
     }
 
     #[test]

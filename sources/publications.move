@@ -8,7 +8,6 @@ module kade::publications {
 
     use std::signer;
     use std::string;
-    use aptos_std::string_utils;
     use aptos_framework::account;
     use aptos_framework::event;
     use aptos_framework::timestamp;
@@ -145,9 +144,15 @@ module kade::publications {
         let kid = state.publication_count;
         assert!(reference_kid < kid, 101);
         state.publication_count = state.publication_count + 1;
+
+
+        let owner_address = accounts::get_delegate_owner_address(delegate);
+        let current_pub_ref = accounts::get_publication_ref(owner_address);
+        accounts::increment_publication_kid(owner_address);
+
         let publication_ref = ref;
         if(string::length(&ref) == 0){
-            publication_ref = string_utils::format1(&b"publication_kid_{}", kid);
+            publication_ref = current_pub_ref;
         };
 
         event::emit_event(&mut state.publication_create_events, PublicationCreate {
@@ -170,9 +175,13 @@ module kade::publications {
         let kid = state.publication_count;
         state.publication_count = state.publication_count + 1;
         assert!(string::length(&ref) > 0, 101);
+        let owner_address = accounts::get_delegate_owner_address(delegate);
+        let current_pub_ref = accounts::get_publication_ref(owner_address);
+        accounts::increment_publication_kid(owner_address);
+
         let publication_ref = ref;
         if(string::length(&ref) == 0){
-            publication_ref = string_utils::format1(&b"publication_kid_{}", kid);
+            publication_ref = current_pub_ref;
         };
 
         event::emit_event(&mut state.publication_create_with_ref_events, PublicationCreateWithRef {
