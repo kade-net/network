@@ -296,6 +296,13 @@ module kade::accounts {
         account_link_intent(user, signer::address_of(user));
     }
 
+    public entry fun account_setup_with_self_delegate(user: &signer, username: string::String) acquires LocalAccountReferences, State, KadeAccount {
+        usernames::claim_username(user, username);
+        create_account(user, username);
+        delegate_link_intent(user, signer::address_of(user));
+        account_link_intent(user, signer::address_of(user));
+    }
+
     // DEFER GAS FEES to kade
     public entry fun gd_add_account_delegate(admin: &signer, user: &signer, delegate: &signer) acquires LocalAccountReferences, KadeAccount, State {
         assert!(signer::address_of(admin) == @kade, EOperationNotPermitted);
