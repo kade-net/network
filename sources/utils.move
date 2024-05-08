@@ -39,6 +39,22 @@ module kade::utils {
         request_inbox::create_delegate_link_intent(user, delegate_address);
     }
 
+    public entry fun add_delegate_to_kade_and_hermes(user: &signer, delegate_address: address) {
+        accounts::delegate_link_intent(user, delegate_address);
+        request_inbox::create_delegate_link_intent(user, delegate_address);
+    }
+
+    public entry fun register_inbox_and_add_delegate(user: &signer, accountPublicKey: string::String, delegate_address: address,){
+        request_inbox::register_request_inbox(user, accountPublicKey);
+        accounts::delegate_link_intent(user, delegate_address);
+        request_inbox::create_delegate_link_intent(user, delegate_address);
+    }
+
+    public entry fun register_delegate_on_kade_and_hermes(delegate: &signer, user_address: address, delegatePublicKey: string::String) {
+        accounts::account_link_intent(delegate, user_address);
+        request_inbox::register_delegate(delegate, user_address, delegatePublicKey);
+    }
+
 
     #[test]
     fun test_init_kade_account_with_hermes_inbox(){
@@ -64,6 +80,7 @@ module kade::utils {
         let user = account::create_account_for_test(@0x445);
         let hermes = account::create_account_for_test(@hermes);
         let delegate = account::create_account_for_test(@0x555);
+        let delegate2 = account::create_account_for_test(@0x888);
         let aptos = account::create_account_for_test(@0x1);
 
         timestamp::set_time_has_started_for_testing(&aptos);
@@ -73,6 +90,9 @@ module kade::utils {
         accounts::dependancy_test_init_module(&admin);
         publications::dependancy_test_init_module(&admin);
         init_kade_account_with_hermes_inbox_and_delegate(&user,string::utf8(b"hilda"), signer::address_of(&delegate),string::utf8(b""));
+        register_delegate_on_kade_and_hermes(&delegate, signer::address_of(&user), string::utf8(b""));
+        add_delegate_to_kade_and_hermes(&user, signer::address_of(&delegate2));
+        register_delegate_on_kade_and_hermes(&delegate2, signer::address_of( &user),string::utf8(b""));
     }
 
 }
