@@ -290,14 +290,14 @@ module kade::accounts {
 
     public entry fun gd_account_setup_with_self_delegate(admin: &signer, user: &signer, username: string::String) acquires LocalAccountReferences, State, KadeAccount {
         assert!(signer::address_of(admin) == @kade, EOperationNotPermitted);
-        usernames::claim_username(user, username);
+        usernames::friend_claim_username(user, username);
         create_account(user, username);
         delegate_link_intent(user, signer::address_of(user));
         account_link_intent(user, signer::address_of(user));
     }
 
     public entry fun account_setup_with_self_delegate(user: &signer, username: string::String) acquires LocalAccountReferences, State, KadeAccount {
-        usernames::claim_username(user, username);
+        usernames::friend_claim_username(user, username);
         create_account(user, username);
         delegate_link_intent(user, signer::address_of(user));
         account_link_intent(user, signer::address_of(user));
@@ -528,7 +528,7 @@ module kade::accounts {
         init_module(admin);
         let username = string::utf8(b"kade");
         usernames::invoke_init_module(admin);
-        usernames::claim_username(user, username);
+        usernames::friend_claim_username(user, username);
         create_account(user, username);
 
         let resource_address = account::create_resource_address(&@kade, SEED);
@@ -559,7 +559,7 @@ module kade::accounts {
         init_module(admin);
         let username = string::utf8(b"kade");
         usernames::invoke_init_module(admin);
-        usernames::claim_username(user, username);
+        usernames::friend_claim_username(user, username);
         create_account(user, username);
 
         add_account_delegate(user, delegate);
@@ -595,7 +595,7 @@ module kade::accounts {
         init_module(admin);
         usernames::invoke_init_module(admin);
         let username = string::utf8(b"kade");
-        usernames::claim_username(user, username);
+        usernames::friend_claim_username(user, username);
         create_account(user, username);
 
         add_account_delegate(user, delegate);
@@ -631,9 +631,9 @@ module kade::accounts {
         usernames::invoke_init_module(admin);
         let username = string::utf8(b"kade");
         let username_2 = string::utf8(b"kade2");
-        usernames::claim_username(user1, username);
+        usernames::friend_claim_username(user1, username);
         create_account(user1, username);
-        usernames::claim_username(user2, username_2);
+        usernames::friend_claim_username(user2, username_2);
         create_account(user2, username_2);
 
         add_account_delegate(user1, delegate);
@@ -664,9 +664,9 @@ module kade::accounts {
         usernames::invoke_init_module(admin);
         let username = string::utf8(b"kade");
         let username_2 = string::utf8(b"kade2");
-        usernames::claim_username(user1, username);
+        usernames::friend_claim_username(user1, username);
         create_account(user1, username);
-        usernames::claim_username(user2, username_2);
+        usernames::friend_claim_username(user2, username_2);
         create_account(user2, username_2);
 
         add_account_delegate(user1, delegate);
@@ -695,7 +695,7 @@ module kade::accounts {
         init_module(admin);
         usernames::invoke_init_module(admin);
         let username = string::utf8(b"kade");
-        usernames::claim_username(user, username);
+        usernames::friend_claim_username(user, username);
         create_account(user, username);
 
         add_account_delegate(user, delegate);
@@ -722,7 +722,7 @@ module kade::accounts {
         init_module(&kade);
         usernames::invoke_init_module(&kade);
         let username = string::utf8(b"kade");
-        usernames::claim_username(&kade, username);
+        usernames::friend_claim_username(&kade, username);
         create_account(&kade, username);
 
         delegate_link_intent(&kade, signer::address_of(&delegate));
@@ -747,7 +747,7 @@ module kade::accounts {
         init_module(&kade);
         usernames::invoke_init_module(&kade);
         let username = string::utf8(b"kade");
-        usernames::claim_username(&kade, username);
+        usernames::friend_claim_username(&kade, username);
         create_account(&kade, username);
 
         delegate_link_intent(&kade, signer::address_of(&delegate));
@@ -767,7 +767,7 @@ module kade::accounts {
         init_module(&kade);
         usernames::invoke_init_module(&kade);
         let username = string::utf8(b"kade");
-        usernames::claim_username(&kade, username);
+        usernames::friend_claim_username(&kade, username);
         create_account_and_delegate_link_intent(&kade, signer::address_of(&delegate), username);
 
     }

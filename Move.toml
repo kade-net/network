@@ -15,5 +15,8 @@ subdir = "aptos-move/framework/aptos-framework"
 git = "https://github.com/aptos-labs/aptos-core.git"
 subdir = "aptos-move/framework/aptos-token-objects/"
 rev = "mainnet"
+[dependencies.hermes]
+git = "https://github.com/kade-net/hermes"
+rev = "main"
 
 [dev-dependencies]

@@ -335,7 +335,7 @@ module kade::publications {
         accounts::invoke_init_module(admin);
         usernames::invoke_init_module(admin);
         init_module(admin);
-        usernames::claim_username(&user, string::utf8(b"kade"));
+        usernames::friend_claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);
@@ -366,7 +366,7 @@ module kade::publications {
         accounts::invoke_init_module(admin);
         usernames::invoke_init_module(admin);
         init_module(admin);
-        usernames::claim_username(&user, string::utf8(b"kade"));
+        usernames::friend_claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);
@@ -399,7 +399,7 @@ module kade::publications {
         accounts::invoke_init_module(admin);
         usernames::invoke_init_module(admin);
         init_module(admin);
-        usernames::claim_username(&user, string::utf8(b"kade"));
+        usernames::friend_claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);
@@ -430,7 +430,7 @@ module kade::publications {
         accounts::invoke_init_module(admin);
         usernames::invoke_init_module(admin);
         init_module(admin);
-        usernames::claim_username(&user, string::utf8(b"kade"));
+        usernames::friend_claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);
@@ -464,7 +464,7 @@ module kade::publications {
         accounts::invoke_init_module(admin);
         usernames::invoke_init_module(admin);
         init_module(admin);
-        usernames::claim_username(&user, string::utf8(b"kade"));
+        usernames::friend_claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);
@@ -496,7 +496,7 @@ module kade::publications {
         accounts::invoke_init_module(admin);
         usernames::invoke_init_module(admin);
         init_module(admin);
-        usernames::claim_username(&user, string::utf8(b"kade"));
+        usernames::friend_claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);
@@ -528,7 +528,7 @@ module kade::publications {
         accounts::invoke_init_module(admin);
         usernames::invoke_init_module(admin);
         init_module(admin);
-        usernames::claim_username(&user, string::utf8(b"kade"));
+        usernames::friend_claim_username(&user, string::utf8(b"kade"));
         accounts::create_account(&user, string::utf8(b"kade"));
 
         accounts::add_account_delegate(&user, &delegate);
