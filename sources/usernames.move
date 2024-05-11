@@ -11,7 +11,7 @@ module kade::usernames {
     use std::vector;
     use aptos_framework::account;
     use aptos_framework::event;
-    use aptos_framework::event::emit_event;
+    use aptos_framework::event::{emit_event, emit};
     use aptos_framework::object;
     use aptos_framework::object::ExtendRef;
     use aptos_framework::timestamp;
@@ -58,6 +58,13 @@ module kade::usernames {
         extend_ref: ExtendRef,
     }
 
+    #[event]
+    struct UserNameReclaimed has store, drop {
+        username: string::String,
+        old_owner_address: address,
+        timestamp: u64
+    }
+
     fun init_module(admin: &signer) {
 
 
@@ -81,7 +88,7 @@ module kade::usernames {
     }
 
 
-    fun internal_claim_username(username: string::String, address: address) acquires UsernameRegistry {
+    fun internal_claim_username(username: string::String, address: address) acquires UsernameRegistry { // TODO: add username record as one of the acquired
         let string_length = string::length(&username);
         assert!(string_length < 32, EINVALID_USERNAME);
         let index_of_empty_string = string::index_of(&username, &string::utf8(b" "));
@@ -151,6 +158,30 @@ module kade::usernames {
         internal_claim_username(username, address)
     }
 
+    fun internal_delete_username(user_address: address, username: string::String) acquires UserNameRecord {
+        assert!(is_username_claimed(username), EINVALID_USERNAME);
+        assert!(is_address_username_owner(user_address, username), EOperationNotPermited);
+        let resource_address = account::create_resource_address(&@kade, SEED);
+        let token_address = get_username_token_address(username);
+        let record = borrow_global_mut<UserNameRecord>(token_address);
+        // reassign to resource account
+        record.target_address = resource_address;
+        let linear_transfer_ref = object::generate_linear_transfer_ref(&record.transfer_ref);
+        // TODO: enable full deletion
+        object::transfer_with_ref(linear_transfer_ref, resource_address);
+
+        emit(UserNameReclaimed {
+            username,
+            timestamp: timestamp::now_seconds(),
+            old_owner_address: user_address
+        })
+    }
+
+    public entry fun admin_delete_username(admin: &signer, user_address: address, username: string::String) acquires UserNameRecord {
+        assert!(signer::address_of(admin) == @kade, EOperationNotPermited);
+        internal_delete_username(user_address, username);
+    }
+
     // TODO: transfer ownership of username to another user
 
 
@@ -163,6 +194,22 @@ module kade::usernames {
 
         is_object
 
+    }
+
+    #[view]
+    public fun has_username_been_reclaimed(username: string::String): bool acquires UserNameRecord {
+        let resource_address = account::create_resource_address(&@kade, SEED);
+        let token_address = token::create_token_address(&resource_address, &string::utf8(COLLECTION_NAME), &username);
+
+        let is_object = object::is_object(token_address);
+
+        if(!is_object){
+            return false
+        };
+
+        let record = borrow_global<UserNameRecord>(token_address);
+        let has_been_reclaimed = record.target_address == resource_address;
+        has_been_reclaimed
     }
 
     #[view]
@@ -432,6 +479,22 @@ module kade::usernames {
         let is_not_owner = is_address_username_owner(@0x1, string::utf8(b"kade"));
 
         assert!(!is_not_owner, 2);
+    }
+
+
+    #[test]
+    fun test_delete_username() acquires  UsernameRegistry, UserNameRecord {
+        let admin_signer = account::create_account_for_test(@kade);
+        let user = account::create_account_for_test(@0x5);
+        let aptos = account::create_account_for_test(@0x1);
+
+        timestamp::set_time_has_started_for_testing(&aptos);
+
+        init_module(&admin_signer);
+        internal_claim_username( string::utf8(b"jurassic"), signer::address_of(&user));
+
+        internal_delete_username(signer::address_of(&user), string::utf8(b"jurassic"));
+
     }
 
 

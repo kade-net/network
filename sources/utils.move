@@ -23,7 +23,6 @@ module kade::utils {
         request_inbox::register_request_inbox(user, publicKey);
     }
 
-
     public entry fun init_kade_account_with_hermes_inbox_and_delegate(user: &signer, username: string::String, delegate_address: address, accountPublicKey: string::String){
         let username_exists = usernames::is_username_claimed(username);
 
@@ -55,6 +54,12 @@ module kade::utils {
         request_inbox::register_delegate(delegate, user_address, delegatePublicKey);
     }
 
+    // TODO: this is temporary and will need to be removed eventually
+    public entry fun admin_delete_account(admin: &signer, user_address: address){
+        let username = accounts::get_current_username(user_address);
+        usernames::admin_delete_username(admin,user_address,username);
+        accounts::admin_delete_account(admin, user_address);
+    }
 
     #[test]
     fun test_init_kade_account_with_hermes_inbox(){
@@ -93,6 +98,25 @@ module kade::utils {
         register_delegate_on_kade_and_hermes(&delegate, signer::address_of(&user), string::utf8(b""));
         add_delegate_to_kade_and_hermes(&user, signer::address_of(&delegate2));
         register_delegate_on_kade_and_hermes(&delegate2, signer::address_of( &user),string::utf8(b""));
+    }
+
+    #[test]
+    fun test_init_kade_account_with_hermes_inbox_then_delete_it(){
+        let admin = account::create_account_for_test(@kade);
+        let user = account::create_account_for_test(@0x445);
+        let hermes = account::create_account_for_test(@hermes);
+        // let delegate = account::create_account_for_test(@0x555);
+        let aptos = account::create_account_for_test(@0x1);
+
+        timestamp::set_time_has_started_for_testing(&aptos);
+
+        request_inbox::init_request_inbox(&hermes);
+        usernames::dependancy_test_init_module(&admin);
+        accounts::dependancy_test_init_module(&admin);
+        publications::dependancy_test_init_module(&admin);
+        init_self_delegate_kade_account_with_hermes_inbox(&user,string::utf8(b"hilda"), string::utf8(b""));
+        admin_delete_account(&admin, signer::address_of(&user));
+
     }
 
 }

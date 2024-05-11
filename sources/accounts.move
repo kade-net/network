@@ -11,6 +11,7 @@ module kade::accounts {
     use aptos_std::string_utils;
     use aptos_framework::account;
     use aptos_framework::event;
+    use aptos_framework::event::emit;
     use aptos_framework::object;
     use aptos_framework::timestamp;
     use kade::usernames;
@@ -123,6 +124,13 @@ module kade::accounts {
         pfp: string::String,
         bio: string::String,
         display_name: string::String,
+    }
+
+    #[event]
+    struct AccountDeleteEvent has store, drop {
+        user_kid: u64,
+        user_address: address,
+        timestamp: u64,
     }
 
     fun init_module(admin: &signer) {
@@ -349,7 +357,44 @@ module kade::accounts {
 
 
     // TODO: transfer account
-    // TODO: delete account
+
+    // TODO: remove eventually or modify
+    fun internal_delete_account(user_address: address) acquires KadeAccount, DelegateAccount, State, LocalAccountReferences {
+        let resource_address = account::create_resource_address(&@kade, SEED);
+
+        let local_ref = borrow_global<LocalAccountReferences>(user_address);
+        assert!(exists<KadeAccount>(local_ref.object_address), EDoesNotExists);
+        let account = move_from<KadeAccount>(local_ref.object_address);
+
+        let state = borrow_global_mut<State>(resource_address);
+
+        vector::for_each<address>(account.delegates, |d_address| {
+            let addr: address = d_address;
+            let delegate = move_from<DelegateAccount>(addr);
+            event::emit_event(&mut state.delegate_remove_events, DelegateRemoveEvent {
+                timestamp: timestamp::now_seconds(),
+                delegate_address: addr,
+                owner_address: user_address,
+                object_address: local_ref.object_address,
+                kid: delegate.kid
+            })
+        });
+
+        // object::delete(local_ref.delete_ref); // TODO: there is a bug with deletion a fix needs to be added pre prod add drop and copy abilities to local account reference
+
+        emit(AccountDeleteEvent {
+            user_address,
+            timestamp: timestamp::now_seconds(),
+            user_kid: account.kid
+        });
+
+    }
+
+    // TODO: remove eventually or modify
+    public entry fun admin_delete_account(admin: &signer, user_address: address) acquires KadeAccount, DelegateAccount, State, LocalAccountReferences {
+        assert!(signer::address_of(admin) == @kade, EOperationNotPermitted);
+        internal_delete_account(user_address)
+    }
 
     public entry fun follow_account(delegate: &signer, following_address: address) acquires KadeAccount,State, DelegateAccount, LocalAccountReferences {
         let resource_address  =account::create_resource_address(&@kade, SEED);
@@ -579,6 +624,44 @@ module kade::accounts {
         assert!(delegate_account.owner == signer::address_of(user), 3);
 
         assert!(delegate_account.account_object_address == local_account_ref.object_address, 4);
+
+    }
+
+    #[test(admin = @kade, user = @0x23, delegate = @0x24)]
+    fun test_add_account_with_delegate_then_delete(admin: &signer, user: &signer, delegate: &signer) acquires State, LocalAccountReferences, KadeAccount, DelegateAccount {
+        let aptos_framework = account::create_account_for_test(@0x1);
+        account::create_account_for_test(@kade);
+        account::create_account_for_test(@0x233);
+        account::create_account_for_test(@0x234);
+        timestamp::set_time_has_started_for_testing(&aptos_framework);
+        let feature = features::get_module_event_feature();
+        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
+
+        init_module(admin);
+        let username = string::utf8(b"kade");
+        usernames::invoke_init_module(admin);
+        usernames::friend_claim_username(user, username);
+        create_account(user, username);
+
+        add_account_delegate(user, delegate);
+
+        let local_account_ref = borrow_global<LocalAccountReferences>(signer::address_of(user));
+
+        let account = borrow_global<KadeAccount>(local_account_ref.object_address);
+
+        let delegate_address = signer::address_of(delegate);
+
+        assert!(vector::length(&account.delegates) == 1, 1);
+
+        assert!(vector::contains(&account.delegates, &delegate_address), 2);
+
+        let delegate_account = borrow_global<DelegateAccount>(delegate_address);
+
+        assert!(delegate_account.owner == signer::address_of(user), 3);
+
+        assert!(delegate_account.account_object_address == local_account_ref.object_address, 4);
+
+        internal_delete_account(signer::address_of(user));
 
     }
 
