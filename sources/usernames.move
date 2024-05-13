@@ -28,7 +28,7 @@ module kade::usernames {
 
     const COLLECTION_NAME: vector<u8> = b"Kade Usernames Registry";
     const COLLECTION_DESCRIPTION: vector<u8> = b"Kade's Registered Usernames";
-    const COLLECTION_URI: vector<u8> = b"https://kade.network"; // TODO: change to metadata url
+    const COLLECTION_URI: vector<u8> = b"https://kade.network";
 
     const IDENTITY_IMAGE:vector<u8> = b"https://orange-urban-sloth-806.mypinata.cloud/ipfs/QmP2uYhKYUHSB587AfQvLb7hdeN5vTpfp6MC81KL98mf5E";
 
@@ -88,20 +88,41 @@ module kade::usernames {
     }
 
 
-    fun internal_claim_username(username: string::String, address: address) acquires UsernameRegistry { // TODO: add username record as one of the acquired
-        let string_length = string::length(&username);
-        assert!(string_length < 32, EINVALID_USERNAME);
-        let index_of_empty_string = string::index_of(&username, &string::utf8(b" "));
-        assert!(index_of_empty_string == string_length, EINVALID_USERNAME);
-        assert_has_no_special_characters(username);
-
+    fun internal_claim_username(username: string::String, address: address) acquires UsernameRegistry, UserNameRecord {
         let resource_address = account::create_resource_address(&@kade, SEED);
 
         let registry = borrow_global_mut<UsernameRegistry>(resource_address);
         let resource_signer = account::create_signer_with_capability(&registry.signer_capability);
+
+        let has_been_claimed = has_username_been_reclaimed(username);
+
+        if(has_been_claimed){
+
+            reclaim_deleted_username(address, username);
+            let token_address = get_username_token_address(username);
+
+            emit_event(&mut registry.registration_events, RegisterUsernameEvent {
+                username,
+                token_address,
+                timestamp: timestamp::now_seconds(),
+                owner_address: address,
+            });
+
+            return
+        };
+
+        let string_length = string::length(&username);
+        assert!(string_length < 32, EINVALID_USERNAME);
+        assert!(string_length > 0, EINVALID_USERNAME);
+        let index_of_empty_string = string::index_of(&username, &string::utf8(b" "));
+        assert!(index_of_empty_string == string_length, EINVALID_USERNAME);
+        assert_has_no_special_characters(username);
+
+
         let token_address = token::create_token_address(&resource_address, &string::utf8(COLLECTION_NAME), &username);
 
         let is_object = object::is_object(token_address);
+
 
         assert!(!is_object, EUsernameAlreadyClaimed);
         assert!(!exists<UserNameRecord>(token_address), EUsernameAlreadyClaimed);
@@ -143,17 +164,17 @@ module kade::usernames {
 
     }
 
-    public entry fun claim_username(user: &signer, username: string::String) acquires  UsernameRegistry {
-        // TODO: unintended function, remove pre prod
+    public entry fun claim_username(user: &signer, username: string::String) acquires  UsernameRegistry, UserNameRecord {
+        // TODO: we may decentralize this functionality later
         assert!(signer::address_of(user) == @kade, EOperationNotPermited);
         internal_claim_username(username, signer::address_of(user));
     }
 
-    public(friend) entry fun friend_claim_username(user: &signer, username: string::String) acquires UsernameRegistry {
+    public(friend) entry fun friend_claim_username(user: &signer, username: string::String) acquires UsernameRegistry, UserNameRecord {
         internal_claim_username(username, signer::address_of(user));
     }
 
-    public entry fun gd_claim_username(admin: &signer, username: string::String, address: address) acquires  UsernameRegistry {
+    public entry fun gd_claim_username(admin: &signer, username: string::String, address: address) acquires  UsernameRegistry, UserNameRecord {
         assert!(signer::address_of(admin) == @kade, EOperationNotPermited);
         internal_claim_username(username, address)
     }
@@ -167,7 +188,6 @@ module kade::usernames {
         // reassign to resource account
         record.target_address = resource_address;
         let linear_transfer_ref = object::generate_linear_transfer_ref(&record.transfer_ref);
-        // TODO: enable full deletion
         object::transfer_with_ref(linear_transfer_ref, resource_address);
 
         emit(UserNameReclaimed {
@@ -177,6 +197,7 @@ module kade::usernames {
         })
     }
 
+
     public entry fun admin_delete_username(admin: &signer, user_address: address, username: string::String) acquires UserNameRecord {
         assert!(signer::address_of(admin) == @kade, EOperationNotPermited);
         internal_delete_username(user_address, username);
@@ -185,8 +206,25 @@ module kade::usernames {
     // TODO: transfer ownership of username to another user
 
 
+    fun reclaim_deleted_username(user_address: address, username: string::String) acquires UserNameRecord {
+        let resource_address = account::create_resource_address(&@kade, SEED);
+        let token_address = token::create_token_address(&resource_address, &string::utf8(COLLECTION_NAME), &username);
+
+        let username_record = borrow_global_mut<UserNameRecord>(token_address);
+        username_record.target_address = user_address;
+
+        let linear_transfer_ref = object::generate_linear_transfer_ref(&username_record.transfer_ref);
+
+        object::transfer_with_ref(linear_transfer_ref, user_address);
+    }
+
+
     #[view]
-    public fun is_username_claimed(username: string::String): bool {
+    public fun is_username_claimed(username: string::String): bool acquires UserNameRecord {
+        let reclaimed = has_username_been_reclaimed(username);
+        if(reclaimed){
+            return false
+        };
         let resource_address = account::create_resource_address(&@kade, SEED);
         let token_address = token::create_token_address(&resource_address, &string::utf8(COLLECTION_NAME), &username);
 
@@ -285,6 +323,32 @@ module kade::usernames {
         vector::push_back(&mut special_characters, string::utf8(b"\n"));
         vector::push_back(&mut special_characters, string::utf8(b"\r"));
         vector::push_back(&mut special_characters, string::utf8(b"\0"));
+        vector::push_back(&mut special_characters, string::utf8(b"A"));
+        vector::push_back(&mut special_characters, string::utf8(b"B"));
+        vector::push_back(&mut special_characters, string::utf8(b"C"));
+        vector::push_back(&mut special_characters, string::utf8(b"D"));
+        vector::push_back(&mut special_characters, string::utf8(b"E"));
+        vector::push_back(&mut special_characters, string::utf8(b"F"));
+        vector::push_back(&mut special_characters, string::utf8(b"G"));
+        vector::push_back(&mut special_characters, string::utf8(b"H"));
+        vector::push_back(&mut special_characters, string::utf8(b"I"));
+        vector::push_back(&mut special_characters, string::utf8(b"J"));
+        vector::push_back(&mut special_characters, string::utf8(b"K"));
+        vector::push_back(&mut special_characters, string::utf8(b"L"));
+        vector::push_back(&mut special_characters, string::utf8(b"M"));
+        vector::push_back(&mut special_characters, string::utf8(b"N"));
+        vector::push_back(&mut special_characters, string::utf8(b"O"));
+        vector::push_back(&mut special_characters, string::utf8(b"P"));
+        vector::push_back(&mut special_characters, string::utf8(b"Q"));
+        vector::push_back(&mut special_characters, string::utf8(b"R"));
+        vector::push_back(&mut special_characters, string::utf8(b"S"));
+        vector::push_back(&mut special_characters, string::utf8(b"T"));
+        vector::push_back(&mut special_characters, string::utf8(b"U"));
+        vector::push_back(&mut special_characters, string::utf8(b"V"));
+        vector::push_back(&mut special_characters, string::utf8(b"W"));
+        vector::push_back(&mut special_characters, string::utf8(b"X"));
+        vector::push_back(&mut special_characters, string::utf8(b"Y"));
+        vector::push_back(&mut special_characters, string::utf8(b"Z"));
 
         let current_index = 0;
         let special_characters_length = vector::length(&special_characters);
@@ -325,7 +389,7 @@ module kade::usernames {
     }
 
     #[test]
-    fun test_internal_claim_username() acquires UsernameRegistry {
+    fun test_internal_claim_username() acquires UsernameRegistry, UserNameRecord {
         let admin_signer = account::create_account_for_test(@kade);
         let aptos = account::create_account_for_test(@0x1);
 
@@ -365,7 +429,7 @@ module kade::usernames {
 
     #[test]
     #[expected_failure(abort_code = EUsernameAlreadyClaimed)]
-    fun test_no_multi_claim() acquires UsernameRegistry{
+    fun test_no_multi_claim() acquires UsernameRegistry, UserNameRecord{
         let admin_signer = account::create_account_for_test(@kade);
         let aptos = account::create_account_for_test(@0x1);
 
@@ -377,36 +441,34 @@ module kade::usernames {
         internal_claim_username(string::utf8(b"kade"), @0x6);
     }
 
-    // #[test]
-    // fun test_claim_username() acquires  UsernameRegistry {
-    //     let admin_signer = account::create_account_for_test(@kade);
-    //     let user = account::create_account_for_test(@0x5);
-    //     let aptos = account::create_account_for_test(@0x1);
-    //
-    //     timestamp::set_time_has_started_for_testing(&aptos);
-    //
-    //     init_module(&admin_signer);
-        // TODO: for now till next update
-        // claim_username(&user, string::utf8(b"jurassic"));
+    #[test]
+    fun test_claim_username() acquires  UsernameRegistry, UserNameRecord {
+        let admin_signer = account::create_account_for_test(@kade);
+        let user = account::create_account_for_test(@0x5);
+        let aptos = account::create_account_for_test(@0x1);
 
-    // }
+        timestamp::set_time_has_started_for_testing(&aptos);
 
-    // #[test]
-    // #[expected_failure(abort_code = EINVALID_USERNAME)]
-    // fun test_invalid_username() acquires  UsernameRegistry {
-    //     let admin_signer = account::create_account_for_test(@kade);
-    //     let user = account::create_account_for_test(@0x5);
-    //     let aptos = account::create_account_for_test(@0x1);
-    //
-    //     timestamp::set_time_has_started_for_testing(&aptos);
-    //
-    //     init_module(&admin_signer);
-    //
-    //     claim_username(&user, string::utf8(b"jurassic p#rk"));
-    // }
+        init_module(&admin_signer);
+        internal_claim_username( string::utf8(b"jurassic"), signer::address_of(&user));
+    }
 
     #[test]
-    fun test_gas_deffered_claim() acquires  UsernameRegistry {
+    #[expected_failure(abort_code = EINVALID_USERNAME)]
+    fun test_invalid_username() acquires  UsernameRegistry, UserNameRecord {
+        let admin_signer = account::create_account_for_test(@kade);
+        let user = account::create_account_for_test(@0x5);
+        let aptos = account::create_account_for_test(@0x1);
+
+        timestamp::set_time_has_started_for_testing(&aptos);
+
+        init_module(&admin_signer);
+
+        internal_claim_username(string::utf8(b"jurassic p#rk"), signer::address_of(&user) );
+    }
+
+    #[test]
+    fun test_gas_deffered_claim() acquires  UsernameRegistry, UserNameRecord {
         let admin_signer = account::create_account_for_test(@kade);
         account::create_account_for_test(@0x5);
         let aptos = account::create_account_for_test(@0x1);
@@ -442,7 +504,7 @@ module kade::usernames {
     }
 
     #[test]
-    fun test_is_username_claimed() acquires UsernameRegistry {
+    fun test_is_username_claimed() acquires UsernameRegistry, UserNameRecord {
         let admin_signer = account::create_account_for_test(@kade);
         let aptos = account::create_account_for_test(@0x1);
 
@@ -462,7 +524,7 @@ module kade::usernames {
     }
 
     #[test]
-    fun test_is_address_owner() acquires UsernameRegistry {
+    fun test_is_address_owner() acquires UsernameRegistry, UserNameRecord {
         let admin_signer = account::create_account_for_test(@kade);
         let aptos = account::create_account_for_test(@0x1);
 

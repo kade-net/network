@@ -380,7 +380,6 @@ module kade::accounts {
             })
         });
 
-        // object::delete(local_ref.delete_ref); // TODO: there is a bug with deletion a fix needs to be added pre prod add drop and copy abilities to local account reference
 
         emit(AccountDeleteEvent {
             user_address,
