@@ -3,6 +3,8 @@ module kade::utils {
 
     use std::signer;
     use std::string;
+    use aptos_framework::aptos_coin::AptosCoin;
+    use aptos_framework::coin;
     use hermes::request_inbox;
     use kade::accounts;
     use kade::usernames;
@@ -18,9 +20,15 @@ module kade::utils {
     const EUsernameNotOwned: u64 = 22;
     const EUsernameAlreadyRegistered: u64 = 23;
 
+
+    inline fun register_apt(user: &signer){
+        coin::register<AptosCoin>(user)
+    }
+
     public entry fun init_self_delegate_kade_account_with_hermes_inbox(user: &signer, username: string::String, publicKey: string::String){
         accounts::account_setup_with_self_delegate(user,username);
         request_inbox::register_request_inbox(user, publicKey);
+        register_apt(user)
     }
 
     public entry fun init_kade_account_with_hermes_inbox_and_delegate(user: &signer, username: string::String, delegate_address: address, accountPublicKey: string::String){
@@ -36,22 +44,26 @@ module kade::utils {
         accounts::create_account_and_delegate_link_intent(user, delegate_address, username);
         request_inbox::register_request_inbox(user, accountPublicKey);
         request_inbox::create_delegate_link_intent(user, delegate_address);
+        register_apt(user)
     }
 
     public entry fun add_delegate_to_kade_and_hermes(user: &signer, delegate_address: address) {
         accounts::delegate_link_intent(user, delegate_address);
         request_inbox::create_delegate_link_intent(user, delegate_address);
+        register_apt(user)
     }
 
     public entry fun register_inbox_and_add_delegate(user: &signer, accountPublicKey: string::String, delegate_address: address,){
         request_inbox::register_request_inbox(user, accountPublicKey);
         accounts::delegate_link_intent(user, delegate_address);
         request_inbox::create_delegate_link_intent(user, delegate_address);
+        register_apt(user)
     }
 
     public entry fun register_delegate_on_kade_and_hermes(delegate: &signer, user_address: address, delegatePublicKey: string::String) {
         accounts::account_link_intent(delegate, user_address);
         request_inbox::register_delegate(delegate, user_address, delegatePublicKey);
+        register_apt(delegate)
     }
 
     // TODO: this is temporary and will need to be removed eventually
@@ -70,6 +82,13 @@ module kade::utils {
         let aptos = account::create_account_for_test(@0x1);
 
         timestamp::set_time_has_started_for_testing(&aptos);
+        let (burn,freeze, mint) = coin::initialize<AptosCoin>(
+            &aptos,
+            string::utf8(b"aptos"),
+            string::utf8(b"aptos"),
+            8,
+            false
+        );
 
         request_inbox::init_request_inbox(&hermes);
         usernames::dependancy_test_init_module(&admin);
@@ -77,6 +96,9 @@ module kade::utils {
         publications::dependancy_test_init_module(&admin);
         init_self_delegate_kade_account_with_hermes_inbox(&user,string::utf8(b"hilda"), string::utf8(b""));
 
+        coin::destroy_burn_cap(burn);
+        coin::destroy_freeze_cap(freeze);
+        coin::destroy_mint_cap(mint);
     }
 
     #[test]
@@ -88,6 +110,14 @@ module kade::utils {
         let delegate2 = account::create_account_for_test(@0x888);
         let aptos = account::create_account_for_test(@0x1);
 
+        let (burn,freeze, mint) = coin::initialize<AptosCoin>(
+            &aptos,
+            string::utf8(b"aptos"),
+            string::utf8(b"aptos"),
+            8,
+            false
+        );
+
         timestamp::set_time_has_started_for_testing(&aptos);
 
         request_inbox::init_request_inbox(&hermes);
@@ -98,6 +128,10 @@ module kade::utils {
         register_delegate_on_kade_and_hermes(&delegate, signer::address_of(&user), string::utf8(b""));
         add_delegate_to_kade_and_hermes(&user, signer::address_of(&delegate2));
         register_delegate_on_kade_and_hermes(&delegate2, signer::address_of( &user),string::utf8(b""));
+
+        coin::destroy_burn_cap(burn);
+        coin::destroy_freeze_cap(freeze);
+        coin::destroy_mint_cap(mint);
     }
 
     #[test]
@@ -108,6 +142,14 @@ module kade::utils {
         // let delegate = account::create_account_for_test(@0x555);
         let aptos = account::create_account_for_test(@0x1);
 
+        let (burn,freeze, mint) = coin::initialize<AptosCoin>(
+            &aptos,
+            string::utf8(b"aptos"),
+            string::utf8(b"aptos"),
+            8,
+            false
+        );
+
         timestamp::set_time_has_started_for_testing(&aptos);
 
         request_inbox::init_request_inbox(&hermes);
@@ -117,6 +159,9 @@ module kade::utils {
         init_self_delegate_kade_account_with_hermes_inbox(&user,string::utf8(b"hilda"), string::utf8(b""));
         admin_delete_account(&admin, signer::address_of(&user));
 
+        coin::destroy_burn_cap(burn);
+        coin::destroy_freeze_cap(freeze);
+        coin::destroy_mint_cap(mint);
     }
 
 }

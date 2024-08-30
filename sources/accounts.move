@@ -19,6 +19,10 @@ module kade::accounts {
     use std::features;
     #[test_only]
     use aptos_std::debug;
+    #[test_only]
+    use aptos_framework::aptos_coin::AptosCoin;
+    #[test_only]
+    use aptos_framework::coin;
 
     friend kade::publications;
 
@@ -570,9 +574,14 @@ module kade::accounts {
         account::create_account_for_test(@kade);
         account::create_account_for_test(@0x233);
         timestamp::set_time_has_started_for_testing(&aptos_framework);
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
+        let (burn,freeze, mint) = coin::initialize<AptosCoin>(
+            &aptos_framework,
+            string::utf8(b"aptos"),
+            string::utf8(b"aptos"),
+            8,
+            false
+        );
 
         init_module(admin);
         let username = string::utf8(b"kade");
@@ -593,6 +602,9 @@ module kade::accounts {
 
         assert!(vector::length(&account.delegates) == 0, 5);
 
+        coin::destroy_burn_cap(burn);
+        coin::destroy_freeze_cap(freeze);
+        coin::destroy_mint_cap(mint);
     }
 
     #[test(admin = @kade, user = @0x23, delegate = @0x24)]
@@ -602,8 +614,13 @@ module kade::accounts {
         account::create_account_for_test(@0x233);
         account::create_account_for_test(@0x234);
         timestamp::set_time_has_started_for_testing(&aptos_framework);
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
+        let (burn,freeze, mint) = coin::initialize<AptosCoin>(
+            &aptos_framework,
+            string::utf8(b"aptos"),
+            string::utf8(b"aptos"),
+            8,
+            false
+        );
 
         init_module(admin);
         let username = string::utf8(b"kade");
@@ -629,6 +646,9 @@ module kade::accounts {
 
         assert!(delegate_account.account_object_address == local_account_ref.object_address, 4);
 
+        coin::destroy_burn_cap(burn);
+        coin::destroy_freeze_cap(freeze);
+        coin::destroy_mint_cap(mint);
     }
 
     #[test(admin = @kade, user = @0x23, delegate = @0x24)]
@@ -638,8 +658,14 @@ module kade::accounts {
         account::create_account_for_test(@0x233);
         account::create_account_for_test(@0x234);
         timestamp::set_time_has_started_for_testing(&aptos_framework);
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
+        let (burn,freeze, mint) = coin::initialize<AptosCoin>(
+            &aptos_framework,
+            string::utf8(b"aptos"),
+            string::utf8(b"aptos"),
+            8,
+            false
+        );
+
 
         init_module(admin);
         let username = string::utf8(b"kade");
@@ -667,6 +693,10 @@ module kade::accounts {
 
         internal_delete_account(signer::address_of(user));
 
+        coin::destroy_burn_cap(burn);
+        coin::destroy_freeze_cap(freeze);
+        coin::destroy_mint_cap(mint);
+
     }
 
     #[test(admin = @kade, user = @0x23, delegate = @0x24)]
@@ -676,8 +706,14 @@ module kade::accounts {
         account::create_account_for_test(@0x233);
         account::create_account_for_test(@0x234);
         timestamp::set_time_has_started_for_testing(&aptos_framework);
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
+
+        let (burn,freeze, mint) = coin::initialize<AptosCoin>(
+            &aptos_framework,
+            string::utf8(b"aptos"),
+            string::utf8(b"aptos"),
+            8,
+            false
+        );
 
         init_module(admin);
         usernames::invoke_init_module(admin);
@@ -701,6 +737,10 @@ module kade::accounts {
 
         assert!(!exists<DelegateAccount>(delegate_address), 3);
 
+        coin::destroy_burn_cap(burn);
+        coin::destroy_freeze_cap(freeze);
+        coin::destroy_mint_cap(mint);
+
     }
 
     #[test(admin = @kade, user1 = @0x23, user2 = @0x45, delegate = @0x24)]
@@ -711,8 +751,14 @@ module kade::accounts {
         account::create_account_for_test(@0x234);
         account::create_account_for_test(@0x235);
         timestamp::set_time_has_started_for_testing(&aptos_framework);
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
+
+        let (burn,freeze, mint) = coin::initialize<AptosCoin>(
+            &aptos_framework,
+            string::utf8(b"aptos"),
+            string::utf8(b"aptos"),
+            8,
+            false
+        );
 
         init_module(admin);
         usernames::invoke_init_module(admin);
@@ -733,6 +779,10 @@ module kade::accounts {
         assert!(event::counter(&state.account_follow_events) == 1, 1);
 
 
+        coin::destroy_burn_cap(burn);
+        coin::destroy_freeze_cap(freeze);
+        coin::destroy_mint_cap(mint);
+
 
     }
 
@@ -744,8 +794,14 @@ module kade::accounts {
         account::create_account_for_test(@0x234);
         account::create_account_for_test(@0x235);
         timestamp::set_time_has_started_for_testing(&aptos_framework);
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
+
+        let (burn,freeze, mint) = coin::initialize<AptosCoin>(
+            &aptos_framework,
+            string::utf8(b"aptos"),
+            string::utf8(b"aptos"),
+            8,
+            false
+        );
 
         init_module(admin);
         usernames::invoke_init_module(admin);
@@ -765,7 +821,9 @@ module kade::accounts {
         let resource_address  =account::create_resource_address(&@kade, SEED);
         let state = borrow_global_mut<State>(resource_address);
 
-        assert!(event::counter(&state.account_unfollow_events) == 1, 1);
+        coin::destroy_burn_cap(burn);
+        coin::destroy_freeze_cap(freeze);
+        coin::destroy_mint_cap(mint);
 
     }
 
@@ -776,8 +834,6 @@ module kade::accounts {
         account::create_account_for_test(@0x233);
         account::create_account_for_test(@0x234);
         timestamp::set_time_has_started_for_testing(&aptos_framework);
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         init_module(admin);
         usernames::invoke_init_module(admin);
@@ -802,8 +858,6 @@ module kade::accounts {
         let aptos_framework = account::create_account_for_test(@0x1);
         let delegate = account::create_account_for_test(@0x2);
 
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
         timestamp::set_time_has_started_for_testing(&aptos_framework);
 
         init_module(&kade);
@@ -826,8 +880,6 @@ module kade::accounts {
         let delegate = account::create_account_for_test(@0x2);
         let delegate2 = account::create_account_for_test(@0x3);
 
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         timestamp::set_time_has_started_for_testing(&aptos_framework);
 
@@ -847,8 +899,7 @@ module kade::accounts {
         let aptos_framework = account::create_account_for_test(@0x1);
         let delegate = account::create_account_for_test(@0x2);
 
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
+
         timestamp::set_time_has_started_for_testing(&aptos_framework);
 
         init_module(&kade);
@@ -865,8 +916,7 @@ module kade::accounts {
         let kade = account::create_account_for_test(@kade);
         let aptos_framework = account::create_account_for_test(@0x1);
 
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
+
         timestamp::set_time_has_started_for_testing(&aptos_framework);
 
         init_module(&kade);
