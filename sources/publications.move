@@ -329,8 +329,6 @@ module kade::publications {
         account::create_account_for_test(@kade);
 
         timestamp::set_time_has_started_for_testing(&aptos_framework);
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
         usernames::invoke_init_module(admin);
@@ -360,8 +358,6 @@ module kade::publications {
         account::create_account_for_test(@kade);
 
         timestamp::set_time_has_started_for_testing(&aptos_framework);
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
         usernames::invoke_init_module(admin);
@@ -393,8 +389,6 @@ module kade::publications {
         account::create_account_for_test(@kade);
 
         timestamp::set_time_has_started_for_testing(&aptos_framework);
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
         usernames::invoke_init_module(admin);
@@ -424,8 +418,6 @@ module kade::publications {
         account::create_account_for_test(@kade);
 
         timestamp::set_time_has_started_for_testing(&aptos_framework);
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
         usernames::invoke_init_module(admin);
@@ -458,8 +450,6 @@ module kade::publications {
         account::create_account_for_test(@kade);
 
         timestamp::set_time_has_started_for_testing(&aptos_framework);
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
         usernames::invoke_init_module(admin);
@@ -490,8 +480,6 @@ module kade::publications {
         account::create_account_for_test(@kade);
 
         timestamp::set_time_has_started_for_testing(&aptos_framework);
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
         usernames::invoke_init_module(admin);
@@ -522,8 +510,6 @@ module kade::publications {
         account::create_account_for_test(@kade);
 
         timestamp::set_time_has_started_for_testing(&aptos_framework);
-        let feature = features::get_module_event_feature();
-        features::change_feature_flags(&aptos_framework, vector[feature], vector[]);
 
         accounts::invoke_init_module(admin);
         usernames::invoke_init_module(admin);
